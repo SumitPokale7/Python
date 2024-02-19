@@ -1,0 +1,151 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: BP Account Custom Resources
+Metadata:
+  Version: 1.0.1
+
+Parameters:
+  AccountName:
+    Type: String
+    Description: The Account Name of the provisioned account
+    AllowedPattern: ^W[S|C]-[A-Z0-9]{4}$
+  AccountId:
+    Type: String
+    Description: The Account ID of the provisioned account
+  AccountType:
+    Type: String
+    Description: The account type of the provisioned account
+  HubAccountName:
+    Type: String
+    Description: The Account Alias of Hub account
+
+Conditions:
+  IsNotFoundationOU: !Not
+    - !Equals ["Foundation", !Ref AccountType]
+
+  IsNotUnmanagedOU: !Not
+    - !Equals ["Unmanaged", !Ref AccountType]
+
+  IsNotPlatformOU: !Not
+    - !Equals ["Platform", !Ref AccountType]
+
+  ShouldProvisionVPC: !And
+    - !Condition IsNotFoundationOU
+    - !Condition IsNotUnmanagedOU
+    - !Condition IsNotPlatformOU
+
+  IsNotStandaloneOU: !Not
+    - !Equals ["Standalone", !Ref AccountType]
+
+  IsNotSandboxOU: !Not
+    - !Equals ["Sandbox", !Ref AccountType]
+
+  ShouldProvisionDNS: !And
+    - !Condition IsNotStandaloneOU
+    - !Condition IsNotFoundationOU
+    - !Condition IsNotSandboxOU
+    - !Condition IsNotUnmanagedOU
+    - !Condition IsNotPlatformOU
+
+Resources:
+################################
+# RBAC Engine
+################################
+  RBAC:
+    Type: Custom::RbacEngine
+    DeletionPolicy: Retain
+    Properties:
+      AccountId: !Ref AccountId
+      AccountName: !Ref AccountName
+      ServiceToken: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${HubAccountName}-LMD_RBAC-Engine"
+
+################################
+# Network Engine
+################################
+  ProvisionVPC:
+    DeletionPolicy: Retain
+    DependsOn:
+      - RBAC
+    Type: Custom::SpokeVpc
+    Condition: ShouldProvisionVPC
+    Properties:
+      AccountId: !Ref AccountId
+      AccountName: !Ref AccountName
+      ServiceToken: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${HubAccountName}-LMD_SPOKE-NETWORK-PROVISIONER-Custom_Resource_Handler"
+
+################################
+# DNS Service
+################################
+  DNS:
+    DeletionPolicy: Retain
+    DependsOn:
+      - ProvisionVPC
+    Type: Custom::DNSService
+    Condition: ShouldProvisionDNS
+    Properties:
+      AccountId: !Ref AccountId
+      AccountName: !Ref AccountName
+      ServiceToken: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${HubAccountName}-LMD_DNS-SERVICE"
+
+################################
+# Ds Automation
+################################
+  DsAutomation:
+    DeletionPolicy: Retain
+    DependsOn:
+      - RBAC
+    Type: Custom::DSAutomation
+    Properties:
+      AccountId: !Ref AccountId
+      AccountName: !Ref AccountName
+      DependsOnDNS: !If [ShouldProvisionDNS, !Ref DNS, !Ref 'AWS::NoValue']
+      ServiceToken: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${HubAccountName}-LMD_DS-AUTOMATION"
+
+################################
+# DbaaS Automation
+################################
+  DbaasAutomation:
+    DeletionPolicy: Retain
+    DependsOn:
+      - RBAC
+      - DsAutomation
+    Type: Custom::DbaasAutomation
+    Properties:
+      AccountId: !Ref AccountId
+      AccountName: !Ref AccountName
+      ServiceIncrement: 1
+      ServiceToken: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${HubAccountName}-LMD_DBAAS-AUTOMATION"
+
+#################################
+# AutoTaggerV3
+#################################
+  AutoTaggerV3:
+    DeletionPolicy: Retain
+    DependsOn:
+      - RBAC
+      - DsAutomation
+      - DbaasAutomation
+    Type: Custom::AutoTaggerV3Integration
+    Properties:
+      AccountId: !Ref AccountId
+      AccountName: !Ref AccountName
+      ServiceIncrement: 1
+      ServiceToken: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${HubAccountName}-LMD_AutoTaggerV3-sidecar-butler"
+
+################################
+# Automation Engine
+################################
+  AutomationEngine:
+    DeletionPolicy: Retain
+    DependsOn:
+      - RBAC
+    Type: Custom::AutomationEngine
+    Properties:
+      AccountId: !Ref AccountId
+      AccountName: !Ref AccountName
+      ServiceIncrement: 1
+      ServiceToken: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${HubAccountName}-LMD_Automation-Engine"
+
+Outputs:
+  RBAC:
+    Value: !Ref RBAC
+    Description: This Lambda manages the RBAC Engine in user accounts.

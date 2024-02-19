@@ -1,0 +1,105 @@
+{
+  "schemaVersion": "2.2",
+  "description": "Run a PowerShell script to securely join a Windows Server instance to a domain",
+  "mainSteps": [
+    {
+      "action": "aws:runPowerShellScript",
+      "name": "windowsDomainJoinSample",
+      "precondition": {
+        "StringEquals": [
+          "platformType",
+          "Windows"
+        ]
+      },
+      "inputs": {
+        "runCommand": [
+          "$EC2InstanceId = (invoke-webrequest -uri http://169.254.169.254/latest/meta-data/instance-id -UseBasicParsing).content",
+          "$Region = ((invoke-webrequest -uri http://169.254.169.254/latest/dynamic/instance-identity/document -UseBasicParsing).content | ConvertFrom-Json).region",
+          "$NameTag=\"JoinAD\"",
+          "function Write-Log {",
+          "    param(",
+          "        [Parameter(Mandatory = $true)]",
+          "        [string] $Message,",
+          "        [Parameter(Mandatory = $false)]",
+          "        [ValidateSet(\"INFO\",\"WARN\",\"ERROR\")]",
+          "        [string] $Level = \"INFO\"",
+          "      )",
+          "    # Create timestamp",
+          "    $timestamp = (Get-Date).toString(\"yyyy/MM/dd HH:mm:ss\")",
+          "    Write-Information -MessageData \"$timestamp [$level] - $message\" -InformationAction Continue",
+          "}",
+          "Write-Log -Message \"Finding tag bp-unique-name for ${EC2InstanceId}\"",
+          "$GetTagJoinAD = (aws ec2 describe-tags --filters \"Name=resource-id,Values=${EC2InstanceId}\" \"Name=key,Values=${NameTag}\" --region eu-west-1 | ConvertFrom-Json)",
+          "function DomainJoin {",
+          "    try {",
+          "        if ($GetTagJoinAD -eq \"False\") {",
+          "          Write-Log -Message \"JoinAD not present or set to false, skipping domain join\"",
+          "          $PID",
+          "          [System.Environment]::Exit($ExitWithFailure)",
+          "      }",
+          "        }",
+          "        else {",
+          "            Write-Log -Message \"Current hostname $NameTag is same as tagged $GetTagJoinAD\"",
+          "        }",
+          "    }",
+          "    catch {",
+          "        Write-Log -Level ERROR -Message \"Failed to rename host $NameTag to $GetTagJoinAD\"",
+          "    }",
+          "}",
+          "DomainJoin"
+        ]
+      }
+    },
+    {
+      "action": "aws:runShellScript",
+      "name": "linuxDomainJoinSample",
+      "precondition": {
+        "StringEquals": [
+          "platformType",
+          "Linux"
+        ]
+      },
+      "inputs": {
+        "runCommand": [
+          "meta_response=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document)",
+          "region=$(echo \"$meta_response\" | jq -r '.region')",
+          "instance_id=$(echo \"$meta_response\" | jq -r '.instanceId')",
+          "unique_name_tag_key='JoinAD'",
+          "tag_exists() {",
+          "    domain_joined=$(aws ec2 describe-tags --filters \"Name=resource-id,Values=$instance_id\" \"Name=key,Values=$unique_name_tag_key\" --region \"$region\" --query \"Tags[0].Value\" --output text)",
+          "    echo \"the hostname=$domain_joined\"",
+          "}",
+          "domain_join() {",
+          "    if tag_exists; then",
+          "        echo \"Domain join tag found\"",
+          "     if [ \"${domain_joined,,}\" == \"True\" ] then",
+                  " if [ -f \"/etc/os-release\" ]; then",
+                  "   source /etc/os-release",
+                  "   if [ \"$ID\" = \"rhel\" ] && [ \"$VERSION_ID\" = \"8\" ]; then",
+                  "     echo \"RHEL 8\"",
+                  "       echo \"domain join\"",
+                  "       exit 0",
+                  "   elif [ \"$ID\" = \"sles\" ] && [ \"$VERSION_ID\" = \"15\" ]; then",
+                  "     echo \"SLES 15\"",
+                  "       echo \"domain join\"",
+                  "       reboot",
+                  "   else",
+                  "     echo \"Unknown operating system\"",
+                  "   fi",
+                  " else",
+                  "   echo \"Could not determine the operating system\"",
+                  " fi",
+          "      echo \"domain join\"",
+          "      domain_join",
+          "      reboot",
+          "   else",
+          "      echo \"Instance marked not to join with the domain. Domain join skipped.\"",
+          "      exit 0",
+          "   fi",
+          "}",
+          "domain_join()"
+        ]
+      }
+    }
+  ]
+}

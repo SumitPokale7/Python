@@ -1,0 +1,190 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  NamingPrefix:
+    Description: Naming Prefix
+    Type: String
+  AccountName:
+    Description: Friendly name of the Customer Spoke account
+    Type: String
+
+Resources:
+  SESLoggingLambdaIamRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub "${NamingPrefix}-LoggingLambda-${AWS::Region}"
+      PermissionsBoundary: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${AccountName}-pol_PlatformUserBoundary
+      AssumeRolePolicyDocument: 
+        Version: 2012-10-17
+        Statement: 
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: cloudwatch_write_policy
+          PolicyDocument: 
+            Version: 2012-10-17
+            Statement: 
+              - Effect: Allow
+                Action: 
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogStreams
+                  - logs:PutRetentionPolicy
+                  - logs:PutSubscriptionFilter
+                Resource: !Sub arn:${AWS::Partition}:logs:*:*:log-group:/aws/lambda/Catalog-SES-*
+      Path: /
+
+  LoggingLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: SES Log forwarder
+      Code:
+        ZipFile: |
+            # got from https://github.com/aws-samples/communication-developer-services-reference-architectures/blob/master/cloudformation/ses_bounce_logging_blog.yml
+            import json
+            import logging
+            import os
+            import secrets
+            import sys
+            import time
+
+            import boto3
+
+            cw_logs_client = boto3.client("logs")
+            bounce_logs_group_name = os.getenv("BOUNCE_GROUP_NAME")
+            complaint_logs_group_name = os.getenv("COMPLAINT_GROUP_NAME")
+            delivery_logs_group_name = os.getenv("DELIVERY_GROUP_NAME")
+            log_level = "ERROR"
+
+
+            def lambda_handler(event, context):
+                logging.getLogger().setLevel(log_level)
+                logging.info(event)
+                for record in event["Records"]:
+                    logs = record["Sns"]["Message"]
+                    logs_data = json.loads(logs)
+                    notification_type = logs_data["notificationType"]
+                    if notification_type == "Bounce":
+                        LOG_GROUP = bounce_logs_group_name
+                    elif notification_type == "Complaint":
+                        LOG_GROUP = complaint_logs_group_name
+                    elif notification_type == "Delivery":
+                        LOG_GROUP = delivery_logs_group_name
+                    else:
+                        logging.info(f"Received wrong notification_type: ${notification_type}")
+                        sys.exit()
+                    LOG_STREAM = f"{time.strftime('%Y/%m/%d')}{'[$LATEST]'} {secrets.token_hex(16)}"
+                    try:
+                        cw_logs_client.create_log_stream(
+                            logGroupName=LOG_GROUP, logStreamName=LOG_STREAM
+                        )
+                    except cw_logs_client.exceptions.ResourceAlreadyExistsException:
+                        pass
+                    response = cw_logs_client.describe_log_streams(
+                        logGroupName=LOG_GROUP, logStreamNamePrefix=LOG_STREAM
+                    )
+                    event_log = {
+                        "logGroupName": LOG_GROUP,
+                        "logStreamName": LOG_STREAM,
+                        "logEvents": [
+                            {"timestamp": int(round(time.time() * 1000)), "message": logs}
+                        ],
+                    }
+                    if "uploadSequenceToken" in response["logStreams"][0]:
+                        event_log.update(
+                            {"sequenceToken": response["logStreams"][0]["uploadSequenceToken"]}
+                        )
+                    response = cw_logs_client.put_log_events(**event_log)
+                    logging.info(response)
+      FunctionName: !Sub "${NamingPrefix}-LMD_SNSLogForwarder"
+      Handler: index.lambda_handler
+      Role: !GetAtt SESLoggingLambdaIamRole.Arn
+      Runtime: python3.9
+      Timeout: 900
+      MemorySize: 192
+      Environment:
+        Variables:
+          BOUNCE_GROUP_NAME: !Sub "/aws/lambda/${NamingPrefix}-LMD_SNSLogForwarder/bounce"
+          COMPLAINT_GROUP_NAME: !Sub "/aws/lambda/${NamingPrefix}-LMD_SNSLogForwarder/complaint"
+          DELIVERY_GROUP_NAME: !Sub "/aws/lambda/${NamingPrefix}-LMD_SNSLogForwarder/delivery"
+
+  BounceSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties: 
+      TopicName: !Sub "${NamingPrefix}-SNS_Bounce"
+
+  ComplaintSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties: 
+      TopicName: !Sub "${NamingPrefix}-SNS_Complaint"
+
+  DeliverySNSTopic:
+    Type: AWS::SNS::Topic
+    Properties: 
+      TopicName: !Sub "${NamingPrefix}-SNS_Delivery"
+
+  BounceSNSSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      Endpoint: !GetAtt LoggingLambda.Arn
+      TopicArn: !Ref BounceSNSTopic
+
+  BounceLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref BounceSNSTopic
+      FunctionName: !Ref LoggingLambda
+
+  ComplaintSNSSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      Endpoint: !GetAtt LoggingLambda.Arn
+      TopicArn: !Ref ComplaintSNSTopic
+
+  ComplaintLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref ComplaintSNSTopic
+      FunctionName: !Ref LoggingLambda
+
+  DeliverySNSSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      Endpoint: !GetAtt LoggingLambda.Arn
+      TopicArn: !Ref DeliverySNSTopic
+
+  DeliveryLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref DeliverySNSTopic
+      FunctionName: !Ref LoggingLambda
+
+Outputs:
+  BounceSNSTopicArn:
+    Description: Bounce SNS Topic Arn
+    Value: !Ref BounceSNSTopic
+    Export:
+      Name: !Sub ${AWS::StackName}-BounceSNSTopicArn
+  ComplaintSNSTopicArn:
+    Description: Complaint SNS Topic Arn
+    Value: !Ref ComplaintSNSTopic
+    Export:
+      Name: !Sub ${AWS::StackName}-ComplaintSNSTopicArn
+  DeliverySNSTopicArn:
+    Description: Delivery SNS Topic Arn
+    Value: !Ref DeliverySNSTopic
+    Export:
+      Name: !Sub ${AWS::StackName}-DeliverySNSTopicArn

@@ -1,0 +1,73 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: "Template for managing deployment of Flowlogs to TGW"
+
+Parameters:
+  AccountName:
+    Type: String
+    Description: The Account Name this template is launching for  
+  LambdaLayerVersion:
+    Type: String
+    Description: Version number of the Hub&Spoke Service Layer
+  S3Arn:
+    Type: String
+    Description: S3 bucket Arn where flowlogs are stored
+
+Resources:
+  LambdaExecutionPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Policy that allows the execution of lambdas for creating transitgate flowlogs.
+      ManagedPolicyName: !Join ["", [!Select [0, !Split ["-CFN-", !Ref "AWS::StackName"]], "-pol_", !Select [1, !Split ["-CFN-", !Ref "AWS::StackName"]], -Lambda_Execution]]
+      Roles:
+        - !Ref LambdaExecutionRole
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: CreateFlowLogs
+            Action:
+              - ec2:DeleteFlowLogs
+              - ec2:CreateFlowLogs
+              - ec2:DescribeFlowLogs
+              - logs:CreateLogDelivery
+              - s3:Put*
+            Effect: Allow
+            Resource: "*"
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ["", [!Select [0, !Split ["-CFN-", !Ref "AWS::StackName"]], "-role_", !Select [1, !Split ["-CFN-", !Ref "AWS::StackName"]]]]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+  
+  LambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Create TransitGateWay Flowlogs.
+      FunctionName: !Join ["", [!Select [0, !Split ["-CFN-", !Ref "AWS::StackName"]], "-LMD_", !Select [1, !Split ["-CFN-", !Ref "AWS::StackName"]]]]
+      Handler: main.lambda_handler
+      Role: !GetAtt [LambdaExecutionRole, Arn]
+      Timeout: 60
+      MemorySize: 128
+      Runtime: python3.8
+      CodeUri: '../src/tgw_flow_logs'
+      Layers:
+        - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:WH-${AccountName}-LL-HS-Service-Library:${LambdaLayerVersion}'
+      Environment:
+        Variables:
+          s3_arn: !Ref S3Arn
+      
+  LambdaLogGroup:
+    DeletionPolicy: Retain
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${LambdaFunction}'

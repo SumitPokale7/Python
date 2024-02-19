@@ -1,0 +1,101 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: 'AWS CloudFormation Template to update config recorder settings in selected accounts managed by ControlTower.'
+
+# TODO pass parameter values via the pipeline
+Parameters:
+  SelectedAccounts:
+    Description: List of accounts to modify their Config Recorder e.g. "411389475538,94896451679"
+    Default: "302158069317,285297725637"
+    MaxLength: '2000'
+    Type: String
+
+  ConfigRecorderExcludedResourceTypes:
+    Description: List of all resource types to be excluded from Config Recorder e.g. "AWS::Pinpoint::Segment,AWS::Pinpoint::ApplicationSettings"
+    Default: "AWS::EC2::NetworkInterface"
+    Type: String
+
+Resources:
+  ConfigCustomizerLambdaEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Custom Rule to trigger config customization lambda for specific accounts"
+      EventBusName: default
+      EventPattern: '{
+                      "source": ["aws.controltower"],
+                      "detail-type": ["AWS Service Event via CloudTrail"],
+                      "detail": {
+                        "eventName": ["UpdateLandingZone", "UpdateManagedAccount"]
+                      }
+                    }'
+      Name: Config_Customizer_Event_Rule # TODO set hub name as prefix
+      State: ENABLED
+      Targets:
+        -
+            Arn:
+              Fn::GetAtt:
+                - "ConfigCustomizerLambda"
+                - "Arn"
+            Id: "ConfigCustomizerLambda"
+
+  ConfigCustomizerLambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: ConfigCustomizerLambdaRole # TODO set hub name as prefix
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: ConfigCustomizerPermissionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:ListStackInstances
+                Resource: !Sub 'arn:${AWS::Partition}:cloudformation:*:*:stackset/AWSControlTowerBP-BASELINE-CONFIG:*'
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource: "*"
+
+  EventsRuleLambdaPermissions:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref ConfigCustomizerLambda
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt ConfigCustomizerLambdaEventRule.Arn
+
+  ConfigCustomizerLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: "./src"
+      Handler: config_customizer.lambda_handler
+      FunctionName: CONFIG-CUSTOMIZER # TODO set hub name as prefix
+      Role: !GetAtt ConfigCustomizerLambdaExecutionRole.Arn
+      Runtime: python3.9
+      MemorySize: 128
+      Timeout: 300
+      Architectures:
+          - x86_64
+      Environment:
+        Variables:
+            LOG_LEVEL: INFO
+            CONFIG_RECORDER_EXCLUDED_RESOURCE_LIST: !Ref ConfigRecorderExcludedResourceTypes
+            SELECTED_ACCOUNTS: !Ref SelectedAccounts
+
+  ConfigCustomizerServerlessLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Join ["", ["/aws/lambda/", !Ref ConfigCustomizerLambda]]

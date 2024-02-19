@@ -1,0 +1,117 @@
+{
+  "schemaVersion": "2.2",
+  "description": "Run a PowerShell script to securely join a Windows Server instance to a domain",
+  "mainSteps": [
+    {
+      "action": "aws:runPowerShellScript",
+      "name": "runPowerShellWithSecureString",
+      "precondition": {
+        "StringEquals": [
+          "platformType",
+          "Windows"
+        ]
+      },
+      "inputs": {
+        "runCommand": [
+          "$EC2InstanceId = (invoke-webrequest -uri http://169.254.169.254/latest/meta-data/instance-id -UseBasicParsing).content",
+          "$Region = ((invoke-webrequest -uri http://169.254.169.254/latest/dynamic/instance-identity/document -UseBasicParsing).content | ConvertFrom-Json).region",
+          "$NameTag=\"bp-unique-name\"",
+          "function Write-Log {",
+          "    param(",
+          "        [Parameter(Mandatory = $true)]",
+          "        [string] $Message,",
+          "        [Parameter(Mandatory = $false)]",
+          "        [ValidateSet(\"INFO\",\"WARN\",\"ERROR\")]",
+          "        [string] $Level = \"INFO\"",
+          "      )",
+          "    # Create timestamp",
+          "    $timestamp = (Get-Date).toString(\"yyyy/MM/dd HH:mm:ss\")",
+          "    Write-Information -MessageData \"$timestamp [$level] - $message\" -InformationAction Continue",
+          "}",
+          "Write-Log -Message \"Finding tag bp-unique-name for ${EC2InstanceId}\"",
+          "#$TagHostName = (aws ec2 describe-tags --filters \"Name=resource-id,Values=${EC2InstanceId}\" \"Name=key,Values=${NameTag}\" --region eu-west-1 | ConvertFrom-Json)",
+          "$TagHostName=\"WSZ0S4EU100017V\"",
+          "function HostRename {",
+          "    $OriginalVMHostName = hostname",
+          "    try {",
+          "        if ($OriginalVMHostName -ne $TagHostName) {",
+          "            Write-Log -Message \"Renaming $OriginalVMHostName to $TagHostName\"",
+          "            Rename-Computer -ComputerName $OriginalVMHostName -NewName $TagHostName -Force",
+          "            Write-Log -Message \"Renamed $OriginalVMHostName to $TagHostName.\"",
+          "            Write-Log -Message \"Exiting with code 3010\"",
+          "            exit 3010",
+          "        }",
+          "        else {",
+          "            Write-Log -Message \"Renaming Hostname not required\"",
+          "            Write-Log -Message \"Current hostname $TagHostName is same as tagged $OriginalVMHostName\"",
+          "        }",
+          "    }",
+          "    catch {",
+          "        Write-Log -Level ERROR -Message \"Failed to rename host $OriginalVMHostName to $TagHostName\"",
+          "    }",
+          "}",
+          "function AddEC2TagCIPStatus {",
+          " param(",
+          "     [String]$Status",
+          " )",
+          " Write-Log -Message \"Adding cip-status tag to ${EC2InstanceId} with value ${Status}\"",
+          " aws ec2 create-tags --resources $EC2InstanceId --tags \"Key=cip-status,Value=$Status\" --region $Region",
+          " if ($LASTEXITCODE -ne 0) {",
+          "     Write-Log -Message \"Failed to add cip-status tag to ${EC2InstanceId}\"",
+          "}",
+          "}",
+          "HostRename",
+          "AddEC2TagCIPStatus -Status \"bootstrapped-renamed\""
+        ]
+      }
+    },
+    {
+      "action": "aws:runShellScript",
+      "name": "runShellWithSecureString",
+      "precondition": {
+        "StringEquals": [
+          "platformType",
+          "Linux"
+        ]
+      },
+      "inputs": {
+        "runCommand": [
+          "meta_response=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document)",
+          "region=$(echo \"$meta_response\" | jq -r '.region')",
+          "instance_id=$(echo \"$meta_response\" | jq -r '.instanceId')",
+          "unique_name_tag_key='bp-unique-name'",
+          "tag_exists() {",
+          "    hostname=$(aws ec2 describe-tags --filters \"Name=resource-id,Values=$instance_id\" \"Name=key,Values=$unique_name_tag_key\" --region \"$region\" --query \"Tags[0].Value\" --output text)",
+          "    echo \"the hostname=$hostname\"",
+          "}",
+          "rename_host() {",
+          "    if tag_exists; then",
+          "        echo \"Renaming host to $hostname\"",
+          "        hostnamectl set-hostname --static \"$hostname\" >/dev/null",
+          "        if [ \"$?\" -ne 0 ]; then",
+          "            echo \"***Failed: set_hostname(): set hostname failed\"",
+          "            tag_cip_status \"bootstrap-failed\"",
+          "            exit 1",
+          "        fi",
+          "    else",
+          "        echo \"Tag $TAG_KEY does not exist. Waiting for it to be available...\"",
+          "        while ! tag_exists; do",
+          "            sleep 5",
+          "        done",
+          "        echo \"Tag $TAG_KEY is now available\"",
+          "        rename_host",
+          "    fi",
+          "}",
+          "",
+          "tag_cip_status() {",
+          "    echo \"tagging cip status with $1 on $instance_id\"",
+          "    aws ec2 create-tags --resources \"$instance_id\" --region \"$region\" --tags \"Key=cip-status,Value=$1\"",
+          "}",
+          "",
+          "rename_host",
+          "tag_cip_status \"bootstrapped-renamed\""
+        ]
+      }
+    }
+  ]
+}

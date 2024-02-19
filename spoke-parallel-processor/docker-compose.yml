@@ -1,0 +1,19 @@
+version: "3.1"
+
+services:
+  notebook:
+    image: ghcr.io/dask/dask-notebook:latest
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./notebooks:/home/jovyan/work
+      - ~/.aws:/home/jovyan/.aws:ro
+    environment:
+      - HUB_NAME
+      - ASSUME_ROLE_NAME
+      - AWS_DEFAULT_REGION
+      - AWS_DEFAULT_PROFILE
+      - EXTRA_PIP_PACKAGES=boto3 hs-service
+      - export PIP_INDEX_URL=https://AWSPlatformPython:${PERSONAL_ACCESS_TOKEN}@pkgs.dev.azure.com/bp-digital/AWS%20Platform/_packaging/AWSPlatformPython/pypi/simple/
+      - CONTROL_TOWER_MIGRATED=False
+      - DRY_RUN=True

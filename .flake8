@@ -1,0 +1,6 @@
+[flake8]
+exclude =
+    # Ignore .git folder
+    .git
+
+max-line-length = 200

@@ -1,0 +1,24 @@
+---
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: AWS Platform/ado-pipeline-templates
+      ref: refs/heads/main
+
+stages:
+  - stage: Lint
+    jobs:
+      - template: testlint.yml@templates
+        parameters:
+          lint:
+            - python_flake8
+            - cloudformation
+            - yaml
+
+  - stage: TagAndRelease
+    condition: and(succeeded(), in(variables['Build.SourceBranchName'], 'main'))
+    jobs:
+      - job: TagAndRelease
+        steps:
+          - template: tag-commit.yml@templates

@@ -1,0 +1,219 @@
+"""
+[H&S] - Connects to each spoke passed in the payload, via role session and deletes default VPC in all regions
+"""
+# Standard library imports
+import time
+import logging
+
+# Third party / External library imports
+import boto3
+import json
+from botocore.exceptions import ClientError
+
+# Set logger
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+
+def lambda_handler(event, _context):
+    logger.info(event)
+    accounts = event.get("accounts")
+    regions = event.get("regions")
+    logger.info("Lambda to delete default VPC in spoke account")
+
+    logger.info(f"Accounts to action: {len(accounts)}")
+
+    remaining_accounts = {"accounts": accounts.copy(), "regions": regions}
+    # Iterate through all the spokes in the list
+    for account in accounts:
+        if _context.get_remaining_time_in_millis() < 60000:  # 60 seconds before timeout
+            lambda_client = boto3.client("lambda")
+            try:
+                response = lambda_client.invoke(
+                    FunctionName=_context.function_name,
+                    InvocationType="Event",
+                    Payload=json.dumps(remaining_accounts),
+                )
+                logger.info(f"Lambda invoke response: {response}")
+                return
+            except Exception as e:
+                logger.info(f"remaining account: {remaining_accounts}")
+                logger.error(f"Error invoking lambda: {e}")
+                raise e
+        try:
+            spoke_target_role = f"arn:aws:iam::{account}:role/CIP_MANAGER"
+            spoke_session = _get_role_session(
+                target_role_arn=spoke_target_role,
+                session_policy={
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "ec2:*",
+                            ],
+                            "Resource": "*",
+                        },
+                    ],
+                },
+            )
+            logger.info(spoke_session)
+            # Delete default VPC in spoke account
+            logger.info(f"Deleting the default VPC in spoke {account}...")
+            for region in regions:
+                logger.info(f"current aws region: {region}")
+                _spoke_expunge_default_vpc(spoke_session, account, region)
+            time.sleep(0.2)
+            remaining_accounts["accounts"].remove(account)
+            logger.info(f"remaing accounts: {len(remaining_accounts)}")
+        except Exception as e:
+            logger.info(f"remaining account: {len(remaining_accounts)}")
+            logger.info(remaining_accounts)
+            logger.critical(f"Error While trying to delete default VPC {e}")
+
+
+def _get_role_session(target_role_arn: str, session_policy: str = None, **kwargs):
+    """
+    Creates a session policy as an inline policy on the fly
+    and passes in the session during role assumption
+    :param target_role_arn: Arn of target role
+    :param session_policy: IAM inline policy
+    :return: boto3.session
+    """
+
+    try:
+        logger.info(f"Requesting temporary credentials using role: {target_role_arn}")
+        credentials = boto3.client("sts").assume_role(
+            RoleArn=target_role_arn,
+            Policy=json.dumps(session_policy) if session_policy else None,
+            RoleSessionName="AssumeRole-DeleteDefaultVPC"[0:64],
+        )["Credentials"]
+        return boto3.Session(
+            aws_access_key_id=credentials["AccessKeyId"],
+            aws_secret_access_key=credentials["SecretAccessKey"],
+            aws_session_token=credentials["SessionToken"],
+        )
+    except ClientError as e:
+        logger.critical(
+            {
+                "Code": "ERROR Lambda DefaultVPCDeletion",
+                "Message": f"Error assuming role {target_role_arn}",
+            }
+        )
+        raise e
+
+
+def _delete_vpc_dependencies(spoke_session: str, vpc_id: str, region: str):
+    """
+    Deletes default VPC dependencies such as subnets and IGW
+    :param spoke_session: EC2 session for spoke account
+    :param vpc_id: Id of the default VPC
+    :param region: Region name
+    """
+    # Define vars
+    ec2_client = spoke_session.client("ec2", region_name=region)
+    # Describe IGW associated with the vpc
+    resp_desc_igws = ec2_client.describe_internet_gateways(
+        Filters=[
+            {"Name": "attachment.vpc-id", "Values": [vpc_id]},
+        ],
+    )["InternetGateways"]
+    logger.info(resp_desc_igws)
+    for item in resp_desc_igws:
+        # Detach the IGW
+        igw_id = item.get("InternetGatewayId")
+        logger.info(
+            f"Detaching Internet Gateway ID: {igw_id} from {vpc_id} in {region}"
+        )
+        logger.info(
+            ec2_client.detach_internet_gateway(
+                InternetGatewayId=igw_id, VpcId=vpc_id, DryRun=False
+            )
+        )
+
+        # Delete the IGW
+        logger.info(f"Deleting Internet Gateway ID: {igw_id} in {region}")
+        logger.info(
+            ec2_client.delete_internet_gateway(InternetGatewayId=igw_id, DryRun=False)
+        )
+
+    # Describe subnets in VPC
+    resp_desc_subnets = ec2_client.describe_subnets(
+        Filters=[
+            {"Name": "vpc-id", "Values": [vpc_id]},
+        ],
+    )["Subnets"]
+    logger.info(resp_desc_subnets)
+
+    # Delete all subnets
+    if len(resp_desc_subnets) > 0:
+        for item in resp_desc_subnets:
+            subnet_id = item.get("SubnetId")
+            logger.info(f"Deleting Subnet ID: {subnet_id} in {region}")
+            logger.info(ec2_client.delete_subnet(SubnetId=subnet_id, DryRun=False))
+
+
+def _spoke_expunge_default_vpc(spoke_session: str, account: str, region: str):
+    """
+    Checks if default VPC is present in spoke account, and deletes its dependencies
+    Deletes default VPC itself
+    :param spoke_session: EC2 session for spoke account
+    :param account: Spoke name
+    :param region: Region name
+    """
+
+    ec2_client = spoke_session.client("ec2", region_name=region)
+    # Describe VPCs
+    response = ec2_client.describe_vpcs(
+        Filters=[
+            {
+                "Name": "isDefault",
+                "Values": [
+                    "true",
+                ],
+            }
+        ]
+    )
+    try:
+        if response.get("Vpcs"):
+            for vpc in response.get("Vpcs", []):
+                vpc_id = vpc.get("VpcId")
+                is_default_vpc = True if vpc.get("IsDefault") is True else False
+                if is_default_vpc:
+                    logger.info(f"Found the default VPC: {vpc_id}")
+
+                    # Delete dependencies (calling method)
+                    logger.info(
+                        f"Deleting VPC: {vpc_id} dependencies for spoke account ID: {account} in {region}"
+                    )
+                    _delete_vpc_dependencies(
+                        spoke_session,
+                        vpc_id,
+                        region,
+                    )
+
+                    # Delete VPC
+                    logger.info(
+                        f"Deleting VPC: {vpc_id} in spoke account ID: {account} in {region}"
+                    )
+                    logger.info(
+                        ec2_client.delete_vpc(
+                            VpcId=vpc_id,
+                        )
+                    )
+                else:
+                    logger.info(f"The {vpc_id} is not a default VPC, skipping...")
+
+        else:
+            logger.info(
+                f"There is no VPC(s) in the spoke account: {account} in {region}"
+            )
+
+    except ClientError as e:
+        logger.critical(
+            {
+                "Code": "ERROR Lambda DefaultVPCDeletion",
+                "Message": "Error deleting default VPC",
+            }
+        )
+        raise e
