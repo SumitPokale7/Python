@@ -26,9 +26,6 @@ async def fetch_roles_in_account(session, account_id, account_name, writer, spok
                     "RoleName": role["RoleName"],
                     "BoundaryPolicy": boundary_policy,
                     "LastUsed": last_used,
-                    "ConnectivityType": spoke_meta.get(account_id, {}).get(
-                        "connectivityType"
-                    ),
                     "NetworkType": spoke_meta.get(account_id, {}).get("networkType"),
                     "EnvironmentType": spoke_meta.get(account_id, {}).get(
                         "environmentType"
@@ -95,7 +92,6 @@ async def get_spoke_metadata(session):
                     "region": item.get("region"),
                     "environmentType": item.get("environment-type"),
                     "networkType": item.get("network-type"),
-                    "connectivityType": item.get("connectivity-type"),
                 }
             if "LastEvaluatedKey" not in response:
                 break
@@ -112,7 +108,6 @@ async def main():
         "RoleName",
         "BoundaryPolicy",
         "LastUsed",
-        "ConnectivityType",
         "NetworkType",
         "EnvironmentType",
         "Region",

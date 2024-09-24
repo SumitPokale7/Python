@@ -18,7 +18,7 @@ Here is a quick guide:
 
 For example:
 ```bash
-export AWS_PROFILE=WH-00H1-role_OPERATIONS
+export AWS_PROFILE=WH-00H1-role_OPERATIONS; awsconnect -r WH-00H1-role_OPERATIONS
 ```
 
 ### How to use the script
@@ -46,3 +46,13 @@ python3 share-ssm-doc.py -e <hub_env>  --no-dry-run to perform live changes
 ### share-ssm-doc.py script performs following actions:
 
 Gets the list of current provisioned spoke accounts from the ddb DYN_METADATA table, assume AWS_PLATFORM_ADMIN role in image builder spoke account of H1/H2/H3 and trigger WS-XXXX-LMB_SSM-DOCUMENT-SHARING lambda for fetched spoke accounts. 
+
+## Unshare Non-Connected accounts from the SSM documents
+Usage: 
+```bash
+python  unshare.py -e  WH-0001
+Without Dryrun
+python  unshare.py -e  WH-0001 --no-dry-run
+```
+Go through all the DDB records and fetch non-connected accounts and matching with the accounts the document share with.
+if there is a match write into CSV files of each documents and do the unshare.

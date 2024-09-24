@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Template to create a Temp Lambda function to delete default VPCs from
+  spoke accounts.
+Parameters:
+  HubName:
+    Type: String
+  HubID:
+    Type: String
+Resources:
+  LambdaExecutionPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Policy that allows the execution of lambdas for creating transitgate
+        flowlogs.
+      ManagedPolicyName:
+        Fn::Sub:
+        - INTERIM-${HubName}-Lambda-Execution-policy
+        - HubName:
+            Fn::Select:
+            - 0
+            - Fn::Split:
+              - -CFN-
+              - Ref: AWS::StackName
+      Roles:
+      - Ref: LambdaExecutionRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Sid: AssumeRole
+          Action:
+          - sts:AssumeRole
+          Effect: Allow
+          Resource: arn:aws:iam::*:role/CIP_MANAGER
+        - Sid: LogGroup
+          Action:
+          - logs:CreateLogGroup
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Effect: Allow
+          Resource: arn:aws:logs:eu-west-2:*:log-group:/aws/lambda/*
+        - Sid: LambdaInvoke
+          Action:
+          - lambda:InvokeFunction
+          Effect: Allow
+          Resource: arn:aws:lambda:*:*:function:INTERIM-WH-?00?-LMB-DEFAULT-VPC-DELETION-CT
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Fn::Sub:
+        - INTERIM-${HubName}-Lambda-Execution-role
+        - HubName:
+            Fn::Select:
+            - 0
+            - Fn::Split:
+              - -CFN-
+              - Ref: AWS::StackName
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+  LambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Deletes the Default VPCs from all regions in a spoke.
+      FunctionName:
+        Fn::Sub:
+        - INTERIM-${HubName}-LMB-DEFAULT-VPC-DELETION-CT
+        - HubName:
+            Fn::Select:
+            - 0
+            - Fn::Split:
+              - -CFN-
+              - Ref: AWS::StackName
+      Handler: delete-default-ct-vpc.lambda_handler
+      Role:
+        Fn::GetAtt:
+        - LambdaExecutionRole
+        - Arn
+      Timeout: 900
+      MemorySize: 128
+      Runtime: python3.9
+      CodeUri: s3://wh-x001-cip-gitlab-ci-eu-west-1/delete-default-vpc-ct/31bc6761fc9021874634c0d955386f1a
+      Environment:
+        Variables:
+          HUB_NAME:
+            Ref: HubName
+          HUB_ID:
+            Ref: HubID
+      Tags:
+        managed-by: aws-platform-team
+  LambdaLogGroup:
+    DeletionPolicy: Retain
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${LambdaFunction}

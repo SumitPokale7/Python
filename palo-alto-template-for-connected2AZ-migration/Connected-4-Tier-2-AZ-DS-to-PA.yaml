@@ -1,0 +1,724 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Network Stack for Connected Spoke to support internet facing workloads
+Metadata:
+  Version: 1.0.23
+Parameters:
+  Cidr:
+    Type: String
+    Description: Cidr block for the VPC
+  TransitGatewayId:
+    Type: String
+    Description: Transit Gateway ID to be attached to the VPC
+  NetworkLocalSubnet:
+    Description: Is Non-Routable Secondary CIDR required to be added to VPC
+    Default: "false"
+    Type: String
+    AllowedValues: ["true", "false"]
+  LocalPrivateNat:
+    Description: Private NAT Gateways for local subnets
+    Default: "false"
+    Type: String
+    AllowedValues: ["true", "false"]
+  PrivateSingleNatGateWay:
+    Type: String
+    Description: network_single_nat field from Metadata Table, It is not recommended for Production environments.
+    AllowedValues: ["true", "false"]
+    Default: "false"
+  FireWallSubnetA:
+    Type: String
+    Description: Firewall subnet id for AZ A
+    Default: ""
+  FireWallSubnetB:
+    Type: String
+    Description: Firewall subnet id for AZ B
+    Default: ""
+  NetworkFirewallEndpointsVpceIdA:
+    Type: String
+    Description: Firewall VPC endpoint id for AZ A
+    Default: ""
+  NetworkFirewallEndpointsVpceIdB:
+    Type: String
+    Description: Firewall VPC endpoint id for AZ B
+    Default: ""
+  FirewallRoutingTableA:
+    Type: String
+    Description: Firewall route table for AZ A
+    Default: ""
+  FirewallRoutingTableB:
+    Type: String
+    Description: Firewall route table for AZ B
+    Default: ""
+  NetworkFirewall:
+    Type: String
+    Description: network firewall field from Metadata Table
+    AllowedValues: ["true", "false"]
+    Default: "false"
+  FirewallEndpointServiceName:
+    Type: String
+    Description: VPC Endpoint Service Name for Palo Alto
+    Default: ""
+  AWSOrganizationMasterAccount:
+    Type: String
+    Description: AWS Organization master account ID
+    Default: ""
+  AWSOrganizationMasterName:
+    Type: String
+    Description: AWS Organization master account name e.g. WH-0001/WH-0002/WH-0003
+    Default: ""
+
+Conditions:
+  IsNetworkLocalSubnetRequired: !Equals [!Ref NetworkLocalSubnet, "true"]
+  IsNetworkFirewallEnabled: !Equals [!Ref NetworkFirewall, "true"]
+  IsNetworkFirewallNotEnabled: !Equals [!Ref NetworkFirewall, "false"]
+  IsLocalPrivateNatRequired: !And
+    - !Equals [!Ref LocalPrivateNat, "true"]
+    - !Condition IsNetworkLocalSubnetRequired
+  NotPrivateSingleNatGateWay: !And
+    - !Condition IsLocalPrivateNatRequired
+    - !Equals [ !Ref PrivateSingleNatGateWay, "false" ]
+
+Resources:
+  ConnectedTgwVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref Cidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+  SecondaryCidrBlock:
+    Type: AWS::EC2::VPCCidrBlock
+    Properties:
+      VpcId: !Ref ConnectedTgwVPC
+      CidrBlock: 100.64.0.0/16
+  LocalSubnetA:
+    Type: AWS::EC2::Subnet
+    Condition: IsNetworkLocalSubnetRequired
+    DependsOn: SecondaryCidrBlock
+    Properties:
+      AvailabilityZone: !Sub ${AWS::Region}a
+      CidrBlock: 100.64.0.0/18
+      VpcId: !Ref ConnectedTgwVPC
+      Tags:
+        - Key: Name
+          Value: !Sub local-subnet-${AWS::Region}a
+  LocalSubnetB:
+    Type: AWS::EC2::Subnet
+    Condition: IsNetworkLocalSubnetRequired
+    DependsOn: SecondaryCidrBlock
+    Properties:
+      AvailabilityZone: !Sub ${AWS::Region}b
+      CidrBlock: 100.64.64.0/18
+      VpcId: !Ref ConnectedTgwVPC
+      Tags:
+        - Key: Name
+          Value: !Sub local-subnet-${AWS::Region}b
+  LocalNACL:
+    Type: AWS::EC2::NetworkAcl
+    Condition: IsNetworkLocalSubnetRequired
+    Properties:
+      VpcId: !Ref ConnectedTgwVPC
+      Tags:
+        - Key: Name
+          Value: local-subnet-nacl
+  LocalSubnetANaclAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Condition: IsNetworkLocalSubnetRequired
+    Properties:
+      SubnetId: !Ref LocalSubnetA
+      NetworkAclId: !Ref LocalNACL
+  LocalSubnetBNaclAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Condition: IsNetworkLocalSubnetRequired
+    Properties:
+      SubnetId: !Ref LocalSubnetB
+      NetworkAclId: !Ref LocalNACL
+  LocalSubnetRouteTableA:
+    Type: AWS::EC2::RouteTable
+    Condition: IsNetworkLocalSubnetRequired
+    Properties:
+      VpcId: !Ref ConnectedTgwVPC
+      Tags:
+        - Key: Name
+          Value: !Sub local-subnet-routetable-${AWS::Region}a
+  LocalSubnetRouteTableB:
+    Type: AWS::EC2::RouteTable
+    Condition: IsNetworkLocalSubnetRequired
+    Properties:
+      VpcId: !Ref ConnectedTgwVPC
+      Tags:
+        - Key: Name
+          Value: !Sub local-subnet-routetable-${AWS::Region}b
+  LocalRouteTableAssociationA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: IsNetworkLocalSubnetRequired
+    Properties:
+      RouteTableId: !Ref LocalSubnetRouteTableA
+      SubnetId: !Ref LocalSubnetA
+  LocalRouteTableAssociationB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: IsNetworkLocalSubnetRequired
+    Properties:
+      RouteTableId: !Ref LocalSubnetRouteTableB
+      SubnetId: !Ref LocalSubnetB
+  LocalSubnetDefaultRouteA:
+    Type: AWS::EC2::Route
+    Condition: IsLocalPrivateNatRequired
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayA
+      RouteTableId: !Ref LocalSubnetRouteTableA
+  LocalSubnetDefaultRouteB:
+    Type: AWS::EC2::Route
+    Condition: IsLocalPrivateNatRequired
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayB
+      RouteTableId: !Ref LocalSubnetRouteTableB
+  
+  PrivateNatGatewayA:
+    Type: AWS::EC2::NatGateway
+    Condition: IsLocalPrivateNatRequired
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      ConnectivityType: "private"
+  PrivateNatGatewayB:
+    Type: AWS::EC2::NatGateway
+    Condition: NotPrivateSingleNatGateWay
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      ConnectivityType: "private"
+
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Sub ${AWS::Region}a
+      CidrBlock: !Select [0, !Cidr [ !Ref Cidr, 4, 6 ]]
+      VpcId: !Ref ConnectedTgwVPC
+      Tags:
+        - Key: Name
+          Value: !Sub private-subnet-${AWS::Region}a
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Sub ${AWS::Region}b
+      CidrBlock: !Select [1, !Cidr [ !Ref Cidr, 4, 6 ]]
+      VpcId: !Ref ConnectedTgwVPC
+      Tags:
+        - Key: Name
+          Value: !Sub private-subnet-${AWS::Region}b
+  PrivateRouteTableSubnetA:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref ConnectedTgwVPC
+      Tags:
+        - Key: Name
+          Value: !Sub private-subnet-routetable-${AWS::Region}a
+  PrivateRouteTableSubnetB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref ConnectedTgwVPC
+      Tags:
+        - Key: Name
+          Value: !Sub private-subnet-routetable-${AWS::Region}b
+  PrivateRouteTableAssociationA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableSubnetA
+      SubnetId: !Ref PrivateSubnetA
+  PrivateRouteTableAssociationB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableSubnetB
+      SubnetId: !Ref PrivateSubnetB
+  TgwConnectedAttachment:
+    Type: AWS::EC2::TransitGatewayAttachment
+    Properties:
+      SubnetIds:
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetB
+      TransitGatewayId: !Ref TransitGatewayId
+      VpcId: !Ref ConnectedTgwVPC
+  PrivateDefaultRouteA:
+    Type: AWS::EC2::Route
+    DependsOn: TgwConnectedAttachment
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayA
+      RouteTableId: !Ref PrivateRouteTableSubnetA
+  PrivateDefaultRouteB:
+    Type: AWS::EC2::Route
+    DependsOn: TgwConnectedAttachment
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayB
+      RouteTableId: !Ref PrivateRouteTableSubnetB
+
+  PublicRoutingTableA:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref ConnectedTgwVPC
+      Tags:
+        - Key: Name
+          Value: !Sub public-subnet-routetable-${AWS::Region}a
+  PublicRoutingTableB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref ConnectedTgwVPC
+      Tags:
+        - Key: Name
+          Value: !Sub public-subnet-routetable-${AWS::Region}b
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Sub ${AWS::Region}a
+      CidrBlock: !Select [4, !Cidr [ !Ref Cidr, 8, 5 ]]
+      VpcId: !Ref ConnectedTgwVPC
+      Tags:
+        - Key: Name
+          Value: !Sub public-subnet-${AWS::Region}a
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Sub ${AWS::Region}b
+      CidrBlock: !Select [5, !Cidr [ !Ref Cidr, 8, 5 ]]
+      VpcId: !Ref ConnectedTgwVPC
+      Tags:
+        - Key: Name
+          Value: !Sub public-subnet-${AWS::Region}b
+  PublicDefaultRouteA:
+    Type: AWS::EC2::Route
+    DependsOn: Delay
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      VpcEndpointId: !If [IsNetworkFirewallEnabled, !Ref PaloAltoFirewallEndpointA, !Ref NetworkFirewallEndpointsVpceIdA]
+      RouteTableId: !Ref PublicRoutingTableA
+  PublicDefaultRouteB:
+    Type: AWS::EC2::Route
+    DependsOn: Delay
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      VpcEndpointId: !If [IsNetworkFirewallEnabled, !Ref PaloAltoFirewallEndpointB, !Ref NetworkFirewallEndpointsVpceIdB]
+      RouteTableId: !Ref PublicRoutingTableB
+  PublicBPCNXRouteA1:
+    Type: AWS::EC2::Route
+    DependsOn: TgwConnectedAttachment
+    Properties:
+      DestinationCidrBlock: 10.0.0.0/8
+      TransitGatewayId: !Ref TransitGatewayId
+      RouteTableId: !Ref PublicRoutingTableA
+  PublicBPCNXRouteB1:
+    Type: AWS::EC2::Route
+    DependsOn: TgwConnectedAttachment
+    Properties:
+      DestinationCidrBlock: 10.0.0.0/8
+      TransitGatewayId: !Ref TransitGatewayId
+      RouteTableId: !Ref PublicRoutingTableB
+  PublicRouteTableAssociationA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRoutingTableA
+      SubnetId: !Ref PublicSubnetA
+  PublicRouteTableAssociationB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRoutingTableB
+      SubnetId: !Ref PublicSubnetB
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref ConnectedTgwVPC
+  IGWInternetIngressRouteTable:
+    Type: AWS::EC2::RouteTable
+    DependsOn: InternetGateway
+    Properties:
+      VpcId: !Ref ConnectedTgwVPC
+      Tags:
+        - Key: Name
+          Value: IGW-routetable
+  IGWInternetIngressFirewallRouteA:
+    Type: AWS::EC2::Route
+    DependsOn: Delay
+    Properties:
+      RouteTableId: !Ref IGWInternetIngressRouteTable
+      DestinationCidrBlock: !Select [4, !Cidr [ !Ref Cidr, 8, 5 ]]   # PublicSubnetA CIDR block
+      VpcEndpointId: !If [IsNetworkFirewallEnabled, !Ref PaloAltoFirewallEndpointA, !Ref NetworkFirewallEndpointsVpceIdA]
+  IGWInternetIngressFirewallRouteB:
+    Type: AWS::EC2::Route
+    DependsOn: Delay
+    Properties:
+      RouteTableId: !Ref IGWInternetIngressRouteTable
+      DestinationCidrBlock: !Select [5, !Cidr [ !Ref Cidr, 8, 5 ]] # PublicSubnetB CIDR block
+      VpcEndpointId: !If [IsNetworkFirewallEnabled, !Ref PaloAltoFirewallEndpointB, !Ref NetworkFirewallEndpointsVpceIdB]
+  IGWRouteTableAssociation:
+    Type: AWS::EC2::GatewayRouteTableAssociation
+    Properties:
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref IGWInternetIngressRouteTable
+  EIPA:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  NatGatewayA:
+    DependsOn: InternetGatewayAttachment
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt EIPA.AllocationId
+      SubnetId: !Ref PublicSubnetA
+  EIPB:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  NatGatewayB:
+    DependsOn: InternetGatewayAttachment
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt EIPB.AllocationId
+      SubnetId: !Ref PublicSubnetB
+
+  NACLforFirewallSubnets:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref ConnectedTgwVPC
+      Tags:
+        - Key: Name
+          Value: firewall-subnet-nacl
+  FirewallSubnetANACLAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !If [IsNetworkFirewallEnabled , !Ref FirewallSubnetA, !Ref FireWallSubnetA]
+      NetworkAclId: !Ref NACLforFirewallSubnets
+  FirewallSubnetBNACLAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !If [IsNetworkFirewallEnabled , !Ref FirewallSubnetB, !Ref FireWallSubnetB]
+      NetworkAclId: !Ref NACLforFirewallSubnets
+
+  NACLforPublicSubnets:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref ConnectedTgwVPC
+      Tags:
+        - Key: Name
+          Value: public-subnet-nacl
+  PublicSubnetANACLAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      NetworkAclId: !Ref NACLforPublicSubnets
+  PublicSubnetBNACLAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      NetworkAclId: !Ref NACLforPublicSubnets
+
+  NACLforPrivateSubnet:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref ConnectedTgwVPC
+      Tags:
+        - Key: Name
+          Value: private-subnet-nacl
+  PrivateSubnetANACLAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      NetworkAclId: !Ref NACLforPrivateSubnet
+  PrivateSubnetBNACLAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      NetworkAclId: !Ref NACLforPrivateSubnet
+  
+  FirewallSubnetA:
+    Type: AWS::EC2::Subnet
+    DependsOn: SecondaryCidrBlock
+    Properties:
+      AvailabilityZone: !Sub ${AWS::Region}a
+      CidrBlock: 100.64.192.0/28
+      VpcId: !Ref ConnectedTgwVPC
+      Tags:
+        - Key: Name
+          Value: !Sub firewall-subnet-${AWS::Region}a
+  FirewallSubnetB:
+    Type: AWS::EC2::Subnet
+    DependsOn: SecondaryCidrBlock
+    Properties:
+      AvailabilityZone: !Sub ${AWS::Region}b
+      CidrBlock: 100.64.192.16/28
+      VpcId: !Ref ConnectedTgwVPC
+      Tags:
+        - Key: Name
+          Value: !Sub firewall-subnet-${AWS::Region}b
+  FirewallSubnetRouteTableA:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref ConnectedTgwVPC
+      Tags:
+        - Key: Name
+          Value: !Sub firewall-subnet-routetable-${AWS::Region}a
+  FirewallSubnetRouteTableB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref ConnectedTgwVPC
+      Tags:
+        - Key: Name
+          Value: !Sub firewall-subnet-routetable-${AWS::Region}b
+  FirewallRouteTableAssociationA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref FirewallSubnetRouteTableA
+      SubnetId: !Ref FirewallSubnetA
+  FirewallRouteTableAssociationB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref FirewallSubnetRouteTableB
+      SubnetId: !Ref FirewallSubnetB
+  FirewallIGWRouteA:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !If [IsNetworkFirewallEnabled, !Ref FirewallSubnetRouteTableA, !Ref FirewallRoutingTableA]
+  FirewallIGWRouteB:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !If [IsNetworkFirewallEnabled, !Ref FirewallSubnetRouteTableB, !Ref FirewallRoutingTableB]
+  PaloAltoFirewallEndpointA:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Ref FirewallEndpointServiceName
+      SubnetIds: 
+        - !Ref FirewallSubnetA
+      VpcEndpointType: GatewayLoadBalancer
+      VpcId: !Ref ConnectedTgwVPC
+  PaloAltoFirewallEndpointB:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Ref FirewallEndpointServiceName
+      SubnetIds:
+        - !Ref FirewallSubnetB
+      VpcEndpointType: GatewayLoadBalancer
+      VpcId: !Ref ConnectedTgwVPC
+
+  # Firewall subnets events rule resources
+  FirewallSubnetEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Join ["", [!Select [0, !Split ["-NETWORK-", !Ref "AWS::StackName"]], "-Firewall_Subnet_Event_Rule"]]
+      State: ENABLED
+      EventPattern:
+        source:
+          - aws.ec2
+        detail:
+          eventSource:
+            - ec2.amazonaws.com
+          eventName:
+            - CreateNetworkInterface
+          requestParameters:
+            subnetId:
+              - !If
+                - IsNetworkFirewallEnabled
+                - !Ref FirewallSubnetA
+                - !Ref FirewallSubnetB
+              - !If
+                - IsNetworkFirewallNotEnabled
+                - !Ref FireWallSubnetA
+                - !Ref FireWallSubnetB
+      Targets:
+        - Arn: !Sub "arn:aws:events:eu-west-1:${AWSOrganizationMasterAccount}:event-bus/${AWSOrganizationMasterName}-Bus-Firewall-Subnet-Events"
+          Id: EventRuleTargetEventBus
+          RoleArn: !GetAtt FirewallSubnetEventRuleRole.Arn
+  FirewallSubnetEventRuleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ["", [!Select [0, !Split ["-NETWORK-", !Ref "AWS::StackName"]], "-role_Firewall_Subnet_Event_Rule"]]
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+      Path: /
+      Policies:
+        - PolicyName: !Join ["", [!Select [0, !Split ["-NETWORK-", !Ref "AWS::StackName"]], "-pol_Firewall_Subnet_Event_Rule"]]
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - events:PutEvents
+                Resource: !Sub "arn:aws:events:eu-west-1:${AWSOrganizationMasterAccount}:event-bus/${AWSOrganizationMasterName}-Bus-Firewall-Subnet-Events"
+                Effect: Allow
+  PublicSubnetEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Join ["", [!Select [0, !Split ["-NETWORK-", !Ref "AWS::StackName"]], "-Public_Subnet_Event_Rule"]]
+      State: ENABLED
+      EventPattern:
+        source:
+          - aws.ec2
+        detail:
+          eventSource:
+            - ec2.amazonaws.com
+          eventName:
+            - CreateNetworkInterface
+          requestParameters:
+            subnetId:
+              - !Ref PublicSubnetA
+              - !Ref PublicSubnetB
+      Targets:
+        - Arn: !Sub "arn:aws:events:eu-west-1:${AWSOrganizationMasterAccount}:event-bus/${AWSOrganizationMasterName}-Bus-Firewall-Subnet-Events"
+          Id: EventRuleTargetEventBus
+          RoleArn: !GetAtt PublicSubnetEventRuleRole.Arn
+  PublicSubnetEventRuleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ["", [!Select [0, !Split ["-NETWORK-", !Ref "AWS::StackName"]], "-role_Public_Subnet_Event_Rule"]]
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+      Path: /
+      Policies:
+        - PolicyName: !Join ["", [!Select [0, !Split ["-NETWORK-", !Ref "AWS::StackName"]], "-pol_Public_Subnet_Event_Rule"]]
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - events:PutEvents
+                Resource: !Sub "arn:aws:events:eu-west-1:${AWSOrganizationMasterAccount}:event-bus/${AWSOrganizationMasterName}-Bus-Firewall-Subnet-Events"
+                Effect: Allow
+  
+  Delay:
+      Type: 'Custom::Delay'
+      DependsOn: [PaloAltoFirewallEndpointA,PaloAltoFirewallEndpointB]
+      Properties:
+        ServiceToken: !GetAtt DelayFunction.Arn
+        TimeToWait: 180
+
+  ### Custom resource for Delay (sleep), that is natively absent in CloudFormation
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ["", [!Select [0, !Split ["-CFN-", !Ref "AWS::StackName"]], "-role_LMD_DELAY_FUNCTION"]]
+      PermissionsBoundary: !Sub [ "arn:aws:iam::${AWS::AccountId}:policy/${SpokeName}-pol_PlatformUserBoundary", {SpokeName: !Select [0, !Split ["-NETWORK-", !Ref "AWS::StackName"]]}]
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+
+  DelayFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: !Join ["", [!Select [0, !Split ["-NETWORK-", !Ref "AWS::StackName"]], "-LMD_DELAY_FUNCTION"]]
+      Handler: "index.handler"
+      Timeout: 300
+      Role: !GetAtt 'LambdaRole.Arn'
+      Runtime: python3.12
+      Code:
+        ZipFile: |
+          import json
+          import cfnresponse
+          import time
+          def handler(event, context):
+             time_to_wait = int(event['ResourceProperties']['TimeToWait'])
+             time.sleep(time_to_wait)
+             responseData = {}
+             responseData['Data'] = "wait complete"
+             cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+      Tags:
+        - Key: managed-by
+          Value: aws-platform-team
+
+Outputs:
+  VPC:
+    Description: VPC
+    Value: !Ref ConnectedTgwVPC
+  PrivateNACL:
+    Description: Private NACL id
+    Value: !Ref NACLforPrivateSubnet
+  PublicNACL:
+    Description: Public NACL id
+    Value: !Ref NACLforPublicSubnets
+  LocalNACL:
+    Description: Local NACL id
+    Value: !Ref LocalNACL
+    Condition: IsNetworkLocalSubnetRequired
+  FirewallNACL:
+    Description: Firewall NACL id
+    Value: !Ref NACLforFirewallSubnets
+  PrivateRouteTableSubnetA:
+    Description: Private RT Subnet A
+    Value: !Ref PrivateRouteTableSubnetA
+  PrivateRouteTableSubnetB:
+    Description: Private RT Subnet B
+    Value: !Ref PrivateRouteTableSubnetB
+  LocalSubnetRouteTableA: 
+    Description: Local RT Subnet A
+    Value: !Ref LocalSubnetRouteTableA
+    Condition: IsNetworkLocalSubnetRequired
+  LocalSubnetRouteTableB: 
+    Description: Local RT Subnet B
+    Value: !Ref LocalSubnetRouteTableB
+    Condition: IsNetworkLocalSubnetRequired
+  TransitGatewayId:
+    Description: TGW id
+    Value: !Ref TransitGatewayId
+  PrivateNatGatewayA:
+    Description: Private Nat Gateway A
+    Value: !Ref PrivateNatGatewayA
+    Condition: IsLocalPrivateNatRequired
+  PrivateNatGatewayB:
+    Description: Private Nat Gateway B
+    Value: !Ref PrivateNatGatewayB
+    Condition: NotPrivateSingleNatGateWay
+  LocalSubnetA:
+    Description: Local Subent A id
+    Value: !Ref LocalSubnetA
+    Condition: IsNetworkLocalSubnetRequired
+  LocalSubnetB:
+    Description: Local Subent B id
+    Value: !Ref LocalSubnetB
+    Condition: IsNetworkLocalSubnetRequired
+  PrivateSubnetA:
+    Description: Private Subnet A id
+    Value: !Ref PrivateSubnetA
+  PrivateSubnetB:
+    Description: Private Subnet B id
+    Value: !Ref PrivateSubnetB
+  PublicSubnetA:
+    Description: Public Subnet A id
+    Value: !Ref PublicSubnetA
+  PublicSubnetB:
+    Description: Public Subnet B id
+    Value: !Ref PublicSubnetB
+  FirewallSubnetA:
+    Description: Firewall Subnet A id
+    Value: !If [IsNetworkFirewallEnabled, !Ref FirewallSubnetA, !Ref FireWallSubnetA]
+  FirewallSubnetB:
+    Description: Firewall Subnet B id
+    Value: !If [IsNetworkFirewallEnabled, !Ref FirewallSubnetB, !Ref FireWallSubnetB]
+  FirewallEndpointA:
+    Condition: IsNetworkFirewallEnabled
+    Description: Palo Alto Firewall endpint A id
+    Value: !Ref PaloAltoFirewallEndpointA
+  FirewallEndpointB:
+    Condition: IsNetworkFirewallEnabled
+    Description: Palo Alto Firewall endpint B id
+    Value: !Ref PaloAltoFirewallEndpointB

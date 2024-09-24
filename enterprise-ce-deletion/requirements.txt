@@ -1,0 +1,8 @@
+boto3
+botocore
+jmespath
+python-dateutil
+pytz
+s3transfer
+six
+urllib3

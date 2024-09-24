@@ -2,6 +2,11 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: "Template to create a Temp Lambda function to delete default VPCs from spoke accounts."
 
+Parameters:
+  HubName:
+    Type: String
+  HubID:
+    Type: String
 Resources:
   LambdaExecutionPolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -57,6 +62,12 @@ Resources:
       MemorySize: 128
       Runtime: python3.9
       CodeUri: '../src/'
+      Environment:
+        Variables:
+          HUB_NAME: !Ref HubName
+          HUB_ID: !Ref HubID
+      Tags:
+        managed-by: aws-platform-team
       
   LambdaLogGroup:
     DeletionPolicy: Retain

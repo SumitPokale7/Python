@@ -24,9 +24,9 @@ def create_client(service, role, region):
 class PHZAssociation:
     def __init__(self, dns_hub_account, account=None):
         self.target_role_arn = (
-            f"arn:aws:iam::{account}:role/AWSCloudFormationStackSetExecutionRole"
+            f"arn:aws:iam::{account}:role/AWS_PLATFORM_ADMIN"
         )
-        self.dns_hub_role_arn = f"arn:aws:iam::{dns_hub_account}:role/AWSCloudFormationStackSetExecutionRole"
+        self.dns_hub_role_arn = f"arn:aws:iam::{dns_hub_account}:role/AWS_PLATFORM_ADMIN"
         self.region = "eu-west-1"
 
         self._r53_client = None
@@ -49,10 +49,25 @@ class PHZAssociation:
         return self._dns_hub_r53_client
 
     def _list_hosted_zones(self, dns_hub_vpc_ireland):
-        response = self.dns_hub_r53_client.list_hosted_zones_by_vpc(
-            VPCId=dns_hub_vpc_ireland, VPCRegion=self.region
-        )["HostedZoneSummaries"]
-        return response
+        hosted_zones = []
+        next_token = None
+
+        while True:
+            params = {
+                'VPCId': dns_hub_vpc_ireland,
+                'VPCRegion': self.region
+            }
+            if next_token:
+                params['NextToken'] = next_token
+
+            response = self.dns_hub_r53_client.list_hosted_zones_by_vpc(**params)
+            hosted_zones.extend(response['HostedZoneSummaries'])
+
+            next_token = response.get('NextToken')
+            if not next_token:
+                break
+
+        return hosted_zones
 
     def _get_associated_vpc_list(self, hosted_zone_id):
         """Get the list of associated VPCs"""
@@ -106,10 +121,10 @@ class PHZAssociation:
         """
         if dns_hub_vpc_id in vpc_ids:
             print(
-                f"Sydney DNS Hub VPC is already associated with {hosted_zone_id} PHZ."
+                f"{region} DNS Hub VPC is already associated with {hosted_zone_id} PHZ."
             )
         else:
-            print("Associate Sydney VPC")
+            print(f"Associate {region} VPC")
             # Step 1: Create the VPC association authorization
             try:
                 self._create_vpc_association(hosted_zone_id, dns_hub_vpc_id, region)

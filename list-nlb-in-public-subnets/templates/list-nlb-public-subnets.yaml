@@ -1,0 +1,28 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: "Template to create a Temp Lambda function that list's NLBs in public subnets."
+
+Parameters:
+  Environment:
+    Type: String
+
+Resources:
+  LambdaFunctionListNLB:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Lists NLBs in public subnets across multiple AWS accounts.
+      FunctionName: !Sub "INTERIM-WH-${Environment}-LMD-LIST-NLB-PUBLIC-SUBNETS"
+      Handler: list-nlb-public-subnet.lambda_handler
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/CIP_MANAGER"
+      Timeout: 900
+      MemorySize: 128
+      Runtime: python3.9
+      CodeUri: '../src/'
+      Tags:
+        managed-by: aws-platform-team
+
+  LambdaLogGroupListNLB:
+    DeletionPolicy: Retain
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${LambdaFunctionListNLB}'

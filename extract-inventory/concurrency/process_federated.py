@@ -7,7 +7,8 @@ import itertools
 import extraction_utils
 
 from csv import reader as csv_reader
-
+from hs_service.aws.dynamodb import DynamoDB
+from boto3.dynamodb.conditions import Attr
 from math import ceil as math_ceil
 from pandas import DataFrame
 from typing import Final
@@ -34,7 +35,9 @@ EXTRACT_SSM_DOCS: Final = 16
 EXTRACT_VIRTUAL_GW: Final = 17
 EXTRACT_MESH: Final = 18
 EXTRACT_AM: Final = 19
-EXTRACTION_TYPE: Final = EXTRACT_AM
+EXTRACT_USER_PROFILE: Final = 20
+EXTRACT_AMI_BLOCK_PUBLIC_ACCESS: Final = 21
+EXTRACTION_TYPE: Final = EXTRACT_AMI_BLOCK_PUBLIC_ACCESS
 
 SERVICE_MAP = {
     EXTRACT_LAMBDAS: "lambda",
@@ -55,6 +58,8 @@ SERVICE_MAP = {
     EXTRACT_VIRTUAL_GW: "directconnect",
     EXTRACT_MESH: "appmesh",
     EXTRACT_AM: "ce",
+    EXTRACT_USER_PROFILE: "iam",
+    EXTRACT_AMI_BLOCK_PUBLIC_ACCESS: "ec2",
 }
 
 SUBMIT_LIMIT_PER_PREP = 200
@@ -70,18 +75,20 @@ PROCESS_FAILED_SPOKES: Final = os.getenv(
 IS_ENTERPRISE: Final = os.getenv(
     "IS_ENTERPRISE", "NO"
 )  # YES: process enterprise accounts
-HUB_NAMES: Final = os.getenv("HUB_NAMES", "WH-00H3")
+
+HUB_NAMES: Final = os.getenv("HUB_NAMES", "WH-00H2")
+
 EXTRACT_LOGS = os.getenv("EXTRACT_LOGS", "YES")
 ENVIRONMENT_TYPE = os.getenv("ENVIRONMENT_TYPE", "ALL")  # ALL, Prod, NonProd, Sandbox
 ACCOUNT_TYPE = os.getenv(
-    "ACCOUNT_TYPE", "ALL"
+    "ACCOUNT_TYPE", "Connected"
 )  # ALL, Foundation, Standalone, Sandbox, Connected, Specific
-SEARCH_REGION = os.getenv("SEARCH_REGION", "us-east-1")
+SEARCH_REGION = os.getenv("SEARCH_REGION", "eu-west-1")
 # SEARCH_REGION = os.getenv(
 #     "SEARCH_REGION",
 #     "eu-west-1")
 KEY_TAG_NAME = "cip-"
-SPECIFIC_ACCOUNT = "768961172930"
+SPECIFIC_ACCOUNT = "495416159460"
 EXTRACT_TAGS_RESOURCE_TYPE = os.getenv("EXTRACT_TAGS_RESOURCE_TYPE", "EC2")
 RESUME_EXTRACTION = os.getenv("RESUME_EXTRACTION", "NO")
 
@@ -137,68 +144,38 @@ def read_accounts_from_file(filename, resumed_id="-1"):
     return _account_dict
 
 
-def get_account_ids(
-    _table_name: str, _dev_session, account_type="ALL", region: str = "eu-west-1"
-):
-    _accounts_dict = {}
+def get_spokes(_filter_expression=None):
+    Table_Name = f"{os.getenv('DDB_PREFIX', None)}-DYN_METADATA"
+    ddb = DynamoDB(Table_Name)
+    if not _filter_expression:
+        _filter_expression = Attr("status").eq("Active") & Attr("account-type").ne(
+            "Hub"
+        )
+    spoke_accounts = ddb.get_all_entries(filter_expression=_filter_expression)
+    spoke_accounts = sorted(spoke_accounts, key=lambda x: x["account"], reverse=False)
+
+    return spoke_accounts
+
+
+def get_account_ids():
     try:
         # delete the accounts.csv file between environments
         # or to build the account list from the scratch
-        _accounts_dict = read_accounts_from_file(f"accounts_{HUB_NAMES}.csv")
+        accounts_dict = read_accounts_from_file(f"accounts_{HUB_NAMES}.csv")
 
     except FileNotFoundError:
-        if account_type == "Specific":
-            return {SPECIFIC_ACCOUNT: SEARCH_REGION}
-
-        if _table_name:
-            ddb_resource = _dev_session.resource("dynamodb", region_name=region).Table(
-                _table_name
-            )
-        else:
-            logger.error("table name is not provided")
-            return None
-
-        response = ddb_resource.scan(
-            FilterExpression="#Status = :status",
-            ExpressionAttributeValues={
-                ":status": "Active",
-            },
-            ExpressionAttributeNames={"#Status": "status"},
-        )
-        data = response["Items"]
-
-        while "LastEvaluatedKey" in response:
-            response = ddb_resource.scan(ExclusiveStartKey=response["LastEvaluatedKey"])
-            data.extend(response["Items"])
-        _accounts_dict = {
-            account["account"]: account["region"]
-            if "region" in account
-            else "eu-west-1"
-            for account in data
-            if "account" in account and account["status"] == "Active"
+        spokes = get_spokes()
+        accounts_dict = {
+            spoke[
+                "account"
+            ]: f"{spoke['region'] if 'region' in spoke else 'eu-west-1'}#{spoke['account-type'] if 'account-type' in spoke else 'na'}"
+            for spoke in spokes
         }
-
-        if ENVIRONMENT_TYPE != "ALL":
-            _accounts_dict = {
-                account["account"]: account["region"]
-                for account in data
-                if "environment-type" in account
-                and account["environment-type"] == ENVIRONMENT_TYPE
-            }
-        if account_type != "ALL":
-            _accounts_dict = {
-                account["account"]: account["region"]
-                for account in data
-                if "account-type" in account and account["account-type"] == account_type
-            }
-        _accounts_dict = dict(
-            sorted(_accounts_dict.items(), key=lambda x: x[0], reverse=False)
+        DataFrame(list(accounts_dict.items()), columns=["account_id", "region"]).to_csv(
+            f"accounts_{HUB_NAMES}.csv", index=False
         )
-        DataFrame(
-            list(_accounts_dict.items()), columns=["account_id", "region"]
-        ).to_csv(f"accounts_{HUB_NAMES}.csv", index=False)
 
-    return _accounts_dict
+    return accounts_dict
 
 
 def tag_date():
@@ -249,16 +226,23 @@ def key_word_to_sort(extraction_type: int):
         return "account_id"
     elif extraction_type == EXTRACT_AM:
         return "account_id"
+    elif extraction_type == EXTRACT_USER_PROFILE:
+        return "account_id"
+    elif extraction_type == EXTRACT_EVENT_RULES:
+        return "account_id"
+    elif extraction_type == EXTRACT_AMI_BLOCK_PUBLIC_ACCESS:
+        return "account_id"
     else:
         raise Exception("incorrect extraction type")
 
 
 def create_client(
-    service: str, role: str, region: str, hub_session: boto3.session.Session
+    service: str, account_id: str, region: str, hub_session: boto3.session.Session
 ):
     """Creates a BOTO3 client using the correct target accounts Role."""
     try:
         sts_client = hub_session.client("sts")
+        role = f"arn:aws:iam::{account_id}:role/CIP_INSPECTOR"
         creds = sts_client.assume_role(
             RoleArn=role, RoleSessionName="LambdaInventorySession"
         )
@@ -270,8 +254,9 @@ def create_client(
             aws_session_token=creds["Credentials"]["SessionToken"],
             region_name=region,
         )
-    except Exception as e:
-        logger.error(f"cannot assume the role: {e}")
+    except Exception as err:
+        logger.error(err, exc_info=True)
+        logger.critical(f"Client error occurred:{err} for role {role}")
         return None
 
     return client
@@ -287,6 +272,8 @@ def extraction(all_args):
         return extraction_utils.extract_log_groups(
             (_account_id, _region, session_client)
         )
+    elif what_to_extract == EXTRACT_ROLES:
+        return extraction_utils.extract_roles((_account_id, _region, session_client))
     elif what_to_extract == EXTRACT_SSM_DOCS:
         return extraction_utils.extract_ssm_documents(
             (_account_id, _region, session_client)
@@ -301,26 +288,39 @@ def extraction(all_args):
         return extraction_utils.extract_anomalies_monitor(
             (_account_id, _region, session_client)
         )
+    elif what_to_extract == EXTRACT_USER_PROFILE:
+        return extraction_utils.extract_login_profiles(
+            (_account_id, _region, session_client)
+        )
+    elif what_to_extract == EXTRACT_EVENT_RULES:
+        return extraction_utils.extract_event_rules(
+            (_account_id, _region, session_client)
+        )
+    elif what_to_extract == EXTRACT_AMI_BLOCK_PUBLIC_ACCESS:
+        return extraction_utils.extract_ami_ebs_block_public_access(
+            (_account_id, _region, session_client)
+        )
     else:
         raise Exception("no proper option was given")
 
 
 @timing
 def build_accounts(_dev_session, client_type, extraction_type):
-    table_name = get_ddb_table(_dev_session)
-
-    account_ids = get_account_ids(table_name, _dev_session, ACCOUNT_TYPE, "eu-west-1")
-    _accounts = [(a, b, client_type, extraction_type) for a, b in account_ids.items()]
+    _accounts = [
+        (a, b.split("#")[0], client_type, extraction_type)
+        for a, b in get_account_ids().items()
+    ]
 
     return _accounts
 
 
 def initialize_clients(initial_param):
     account_id, region, client_type, extraction_type = initial_param
-
+    print(f"Initialize_Client = account_id: {account_id}, region: {region}, client_type: {client_type}")
     region_pop = False
     # make sure no stone is left untouched
-    if region not in REGIONS:
+
+    if region not in REGIONS and client_type != "iam":
         logger.info(f"the region {region} added for the account id {account_id}")
         REGIONS.append(region)
         region_pop = True
@@ -331,7 +331,7 @@ def initialize_clients(initial_param):
             one_region,
             create_client(
                 client_type,
-                f"arn:aws:iam::{account_id}:role/CIP_INSPECTOR",
+                account_id,
                 one_region,
                 dev_session,
             ),
@@ -361,7 +361,7 @@ if __name__ == "__main__":
         preps = []
         for one in range(1, num_of_pages + 1):
             offset = (one - 1) * SUBMIT_LIMIT_PER_PREP
-            logger.info(f"the %{(one / (num_of_pages))*100} percent prepared")
+            logger.info(f"the %{(one / num_of_pages)*100} percent prepared")
             for result in prep_executor.map(
                 initialize_clients, accounts[offset: offset + SUBMIT_LIMIT_PER_PREP]
             ):
@@ -415,7 +415,16 @@ if __name__ == "__main__":
         key=lambda x: x[key_word_to_sort(EXTRACTION_TYPE)],
         reverse=False,
     )
-    df = DataFrame(function_reports)
+    _accounts_dict = read_accounts_from_file(f"accounts_{HUB_NAMES}.csv")
+
+    append_account_type = [
+        dict(
+            customer,
+            **{"account-type": _accounts_dict[customer["account_id"]].split("#")[1]},
+        )
+        for customer in function_reports
+    ]
+    df = DataFrame(append_account_type)
     df.to_csv(
         f"{key_word_to_sort(EXTRACTION_TYPE)}_{HUB_NAMES}_ALL_{ACCOUNT_TYPE}_{ENVIRONMENT_TYPE}_{tag_date()}.csv",
         index=False,

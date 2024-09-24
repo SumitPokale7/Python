@@ -1,2 +1,2 @@
 # Required version to support required configservice API
-boto3==1.28.16
+boto3

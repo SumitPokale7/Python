@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: "Template to create a Lambda function to remove an attribute from DynamoDB items."
+
+Parameters:
+  Environment:
+    Type: String
+
+Resources:
+  LambdaExecutionPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Policy that allows the execution of lambdas to access DynamoDB.
+      ManagedPolicyName: !Sub 'INTERIM-WH-${Environment}-LMD-Delete-DDB-Attribute-Policy'
+      Roles:
+        - !Ref LambdaExecutionRole
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DynamoDBAccess
+            Action:
+              - dynamodb:Scan
+              - dynamodb:UpdateItem
+              - dynamodb:GetItem
+            Effect: Allow
+            Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/WH-${Environment}-DYN_METADATA'
+          - Sid: LogGroup
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Effect: Allow
+            Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*'
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'INTERIM-WH-${Environment}-LMD-Delete-DDB-Attribute-Role'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+
+  LambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Removes a specified attribute from all items in a DynamoDB table.
+      FunctionName: !Sub 'INTERIM-WH-${Environment}-LMD-delete-ddb-attribute'
+      Handler: delete-ddb-attribute.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 900  # 15 minutes
+      MemorySize: 128
+      Runtime: python3.12
+      CodeUri: '../src/'
+      Environment:
+        Variables:
+          Environment: !Ref Environment
+      Tags:
+        managed-by: aws-platform-team
+
+  LambdaLogGroup:
+    DeletionPolicy: Retain
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${LambdaFunction}'
+      RetentionInDays: 90

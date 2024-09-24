@@ -34,8 +34,7 @@ def fetch_accounts_from_metadata(hub_name):
 
     filter_expression = (
         Attr("status").eq("Active")
-        & Attr("account-type").ne("Hub")
-        & Attr("account-type").ne("Security")
+        & Attr("account-type").eq("Connected")
     )
 
     return dynamodb.get_all_entries(filter_expression=filter_expression)

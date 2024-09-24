@@ -93,6 +93,8 @@ Resources:
             LOG_LEVEL: INFO
             CONFIG_RECORDER_EXCLUDED_RESOURCE_LIST: !Ref ConfigRecorderExcludedResourceTypes
             SELECTED_ACCOUNTS: !Ref SelectedAccounts
+      Tags:
+        managed-by: aws-platform-team
 
   ConfigCustomizerServerlessLogGroup:
     Type: AWS::Logs::LogGroup

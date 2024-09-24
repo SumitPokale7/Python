@@ -5,30 +5,26 @@ Parameters:
   NamingPrefix:
     Description: Naming Prefix
     Type: String
-  AccountName:
-    Description: Friendly name of the Customer Spoke account
-    Type: String
 
 Resources:
   SESLoggingLambdaIamRole:
     Type: 'AWS::IAM::Role'
     Properties:
       RoleName: !Sub "${NamingPrefix}-LoggingLambda-${AWS::Region}"
-      PermissionsBoundary: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${AccountName}-pol_PlatformUserBoundary
-      AssumeRolePolicyDocument: 
+      AssumeRolePolicyDocument:
         Version: 2012-10-17
-        Statement: 
+        Statement:
           - Effect: Allow
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
       Policies:
         - PolicyName: cloudwatch_write_policy
-          PolicyDocument: 
+          PolicyDocument:
             Version: 2012-10-17
-            Statement: 
+            Statement:
               - Effect: Allow
-                Action: 
+                Action:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
@@ -111,20 +107,23 @@ Resources:
           BOUNCE_GROUP_NAME: !Sub "/aws/lambda/${NamingPrefix}-LMD_SNSLogForwarder/bounce"
           COMPLAINT_GROUP_NAME: !Sub "/aws/lambda/${NamingPrefix}-LMD_SNSLogForwarder/complaint"
           DELIVERY_GROUP_NAME: !Sub "/aws/lambda/${NamingPrefix}-LMD_SNSLogForwarder/delivery"
+      Tags:
+        - Key: managed-by
+          Value: aws-platform-team
 
   BounceSNSTopic:
     Type: AWS::SNS::Topic
-    Properties: 
+    Properties:
       TopicName: !Sub "${NamingPrefix}-SNS_Bounce"
 
   ComplaintSNSTopic:
     Type: AWS::SNS::Topic
-    Properties: 
+    Properties:
       TopicName: !Sub "${NamingPrefix}-SNS_Complaint"
 
   DeliverySNSTopic:
     Type: AWS::SNS::Topic
-    Properties: 
+    Properties:
       TopicName: !Sub "${NamingPrefix}-SNS_Delivery"
 
   BounceSNSSubscription:

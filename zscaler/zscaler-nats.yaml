@@ -1,0 +1,1554 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "VPC: NAT Gateway template"
+
+Parameters:
+  PublicSubnetAZa:
+    Description: "Public Subnet AZa ID"
+    Type: String
+  PublicSubnetAZb:
+    Description: "Public Subnet AZb ID"
+    Type: String
+  PublicSubnetAZc:
+    Description: "Public Subnet AZc ID"
+    Type: String
+  PrivateRouteTableA:
+    Description: "Private Route Table A ID"
+    Type: String
+  PrivateRouteTableB:
+    Description: "Private Route Table B ID"
+    Type: String
+  PrivateRouteTableC:
+    Description: "Private Route Table C ID"
+    Type: String
+  TransitGatewayId:
+    Description: "Transit Gateway ID"
+    Type: String
+
+Resources:
+  # EIPs
+  NatPublicIP1:
+    Type: AWS::EC2::EIP
+    DeletionPolicy: Retain
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: Nat-EIP-AZa
+        - Key: managed-by
+          Value: aws-platform-team
+
+  NatPublicIP2:
+    Type: AWS::EC2::EIP
+    DeletionPolicy: Retain
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: Nat-EIP-AZb
+        - Key: managed-by
+          Value: aws-platform-team
+
+  NatPublicIP3:
+    Type: AWS::EC2::EIP
+    DeletionPolicy: Retain
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: Nat-EIP-AZc
+        - Key: managed-by
+          Value: aws-platform-team
+
+  # NAT Gateways
+  NatGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      SubnetId:
+        Ref: PublicSubnetAZa
+      AllocationId:
+        Fn::GetAtt:
+          - NatPublicIP1
+          - AllocationId
+      Tags:
+        - Key: Name
+          Value: Public-Subnet-NatAZa
+        - Key: managed-by
+          Value: aws-platform-team
+
+  NatGateway2:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      SubnetId:
+        Ref: PublicSubnetAZb
+      AllocationId:
+        Fn::GetAtt:
+          - NatPublicIP2
+          - AllocationId
+      Tags:
+        - Key: Name
+          Value: Public-Subnet-NatAZb
+        - Key: managed-by
+          Value: aws-platform-team
+
+  NatGateway3:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      SubnetId:
+        Ref: PublicSubnetAZc
+      AllocationId:
+        Fn::GetAtt:
+          - NatPublicIP3
+          - AllocationId
+      Tags:
+        - Key: Name
+          Value: Public-Subnet-NatAZc
+        - Key: managed-by
+          Value: aws-platform-team
+  # Default Routes
+  PrivateDefaultRouteA:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId: !Ref PrivateRouteTableA
+      NatGatewayId: !Ref NatGateway1
+
+  PrivateDefaultRouteB:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId: !Ref PrivateRouteTableB
+      NatGatewayId: !Ref NatGateway2
+
+  PrivateDefaultRouteC:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId: !Ref PrivateRouteTableC
+      NatGatewayId: !Ref NatGateway3
+
+  # Private Subnet A CNX Routes
+  PrivateSubnetAZaCNXRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 193.29.160.0/20
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute2:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 130.201.0.0/16
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute3:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 138.241.0.0/16
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute4:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 149.177.0.0/16
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute5:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 161.99.0.0/16
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute10:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 164.63.0.0/16
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute11:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 192.168.0.0/16
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute12:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 194.127.154.0/23
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute13:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 146.242.128.0/27
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute14:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 146.242.132.0/27
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute15:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 146.242.129.64/27
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute16:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 146.242.133.64/27
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute17:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 161.100.0.0/14
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute20:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 149.178.0.0/15
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute21:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 149.180.0.0/14
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute22:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 149.184.0.0/13
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute23:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 149.192.0.0/14
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute24:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 149.196.0.0/16
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute25:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 10.0.0.0/8
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute26:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 172.16.0.0/12
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  # ------- Additional routes - Zscaler ZPA ---------
+  PrivateSubnetAZaCNXRoute27:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 69.184.0.0/16
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute28:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 160.43.0.0/16
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute29:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 199.105.176.0/21
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute30:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 199.105.184.0/23
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute31:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 205.183.246.0/24
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute32:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 208.134.161.0/24
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute33:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.0.0/18
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute34:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.87.32/28
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute35:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.87.48/28
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute36:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.100.0/22
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute37:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.168.0/24
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute38:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.44.40.0/22
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute39:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.44.111.0/24
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute40:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.44.168.0/22
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute41:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.220.192.0/20
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute42:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 192.152.41.0/24
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute43:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 192.155.137.0/24
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute44:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 192.155.138.0/24
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute45:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 63.247.112.0/20
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute46:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 192.197.147.201/32
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute47:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 216.221.208.0/20
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute48:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 155.61.194.0/26
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute49:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 94.199.89.60/32
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute50:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 94.199.92.200/32
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute51:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 20.9.60.0/24
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute52:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 15.163.150.0/24
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute53:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 155.61.194.64/26
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute54:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 150.251.4.136/32
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute55:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 150.251.4.144/32
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute56:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.97.0/24
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute57:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.118.0/24
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute58:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.121.0/24
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute59:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 146.242.130.0/27
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute60:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 146.242.134.0/27
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute61:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 146.242.136.0/21
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute62:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 85.132.3.210/32
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute63:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 94.199.89.34/32
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute64:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 94.199.90.104/30
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute65:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 94.199.92.176/28
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute66:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 75.96.208.0/20
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute67:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 75.124.40.0/21
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute68:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.90.0/24
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute69:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.44.104.0/22
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute70:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 192.152.40.0/24
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute71:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 158.224.34.0/23
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute72:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 158.224.36.0/24
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZaCNXRoute73:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 158.224.70.0/24
+      RouteTableId: !Ref PrivateRouteTableA
+      TransitGatewayId: !Ref TransitGatewayId
+
+  ## Private Subnet B CNX Routes
+
+  PrivateSubnetAZbCNXRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 193.29.160.0/20
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute2:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 130.201.0.0/16
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute3:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 138.241.0.0/16
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute4:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 149.177.0.0/16
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute5:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 161.99.0.0/16
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute10:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 164.63.0.0/16
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute11:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 192.168.0.0/16
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute12:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 194.127.154.0/23
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute13:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 146.242.128.0/27
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute14:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 146.242.132.0/27
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute15:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 146.242.129.64/27
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute16:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 146.242.133.64/27
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute17:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 161.100.0.0/14
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute20:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 149.178.0.0/15
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute21:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 149.180.0.0/14
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute22:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 149.184.0.0/13
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute23:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 149.192.0.0/14
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute24:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 149.196.0.0/16
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute25:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 10.0.0.0/8
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute26:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 172.16.0.0/12
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  # ------- Additional routes - Zscaler ZPA ---------
+  PrivateSubnetAZbCNXRoute27:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 69.184.0.0/16
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute28:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 160.43.0.0/16
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute29:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 199.105.176.0/21
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute30:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 199.105.184.0/23
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute31:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 205.183.246.0/24
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute32:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 208.134.161.0/24
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute33:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.0.0/18
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute34:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.87.32/28
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute35:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.87.48/28
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute36:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.100.0/22
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute37:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.168.0/24
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute38:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.44.40.0/22
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute39:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.44.111.0/24
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute40:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.44.168.0/22
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute41:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.220.192.0/20
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute42:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 192.152.41.0/24
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute43:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 192.155.137.0/24
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute44:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 192.155.138.0/24
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute45:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 63.247.112.0/20
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute46:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 192.197.147.201/32
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute47:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 216.221.208.0/20
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute48:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 155.61.194.0/26
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute49:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 94.199.89.60/32
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute50:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 94.199.92.200/32
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute51:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 20.9.60.0/24
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute52:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 15.163.150.0/24
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute53:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 155.61.194.64/26
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute54:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 150.251.4.136/32
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute55:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 150.251.4.144/32
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute56:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.97.0/24
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute57:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.118.0/24
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute58:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.121.0/24
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute59:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 146.242.130.0/27
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute60:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 146.242.134.0/27
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute61:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 146.242.136.0/21
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute62:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 85.132.3.210/32
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute63:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 94.199.89.34/32
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute64:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 94.199.90.104/30
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute65:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 94.199.92.176/28
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute66:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 75.96.208.0/20
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute67:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 75.124.40.0/21
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute68:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.90.0/24
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute69:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.44.104.0/22
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute70:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 192.152.40.0/24
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute71:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 158.224.34.0/23
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute72:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 158.224.36.0/24
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZbCNXRoute73:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 158.224.70.0/24
+      RouteTableId: !Ref PrivateRouteTableB
+      TransitGatewayId: !Ref TransitGatewayId
+  ## Private Subnet C CNX Routes
+
+  PrivateSubnetAZcCNXRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 193.29.160.0/20
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute2:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 130.201.0.0/16
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute3:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 138.241.0.0/16
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute4:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 149.177.0.0/16
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute5:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 161.99.0.0/16
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute10:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 164.63.0.0/16
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute11:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 192.168.0.0/16
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute12:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 194.127.154.0/23
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute13:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 146.242.128.0/27
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute14:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 146.242.132.0/27
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute15:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 146.242.129.64/27
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute16:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 146.242.133.64/27
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute17:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 161.100.0.0/14
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute20:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 149.178.0.0/15
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute21:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 149.180.0.0/14
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute22:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 149.184.0.0/13
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute23:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 149.192.0.0/14
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute24:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 149.196.0.0/16
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute25:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 10.0.0.0/8
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute26:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 172.16.0.0/12
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  # ------- Additional routes - Zscaler ZPA ---------
+  PrivateSubnetAZcCNXRoute27:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 69.184.0.0/16
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute28:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 160.43.0.0/16
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute29:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 199.105.176.0/21
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute30:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 199.105.184.0/23
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute31:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 205.183.246.0/24
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute32:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 208.134.161.0/24
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute33:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.0.0/18
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute34:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.87.32/28
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute35:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.87.48/28
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute36:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.100.0/22
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute37:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.168.0/24
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute38:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.44.40.0/22
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute39:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.44.111.0/24
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute40:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.44.168.0/22
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute41:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.220.192.0/20
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute42:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 192.152.41.0/24
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute43:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 192.155.137.0/24
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute44:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 192.155.138.0/24
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute45:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 63.247.112.0/20
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute46:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 192.197.147.201/32
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute47:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 216.221.208.0/20
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute48:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 155.61.194.0/26
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute49:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 94.199.89.60/32
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute50:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 94.199.92.200/32
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute51:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 20.9.60.0/24
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute52:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 15.163.150.0/24
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute53:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 155.61.194.64/26
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute54:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 150.251.4.136/32
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute55:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 150.251.4.144/32
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute56:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.97.0/24
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute57:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.118.0/24
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute58:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.121.0/24
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute59:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 146.242.130.0/27
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute60:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 146.242.134.0/27
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute61:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 146.242.136.0/21
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute62:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 85.132.3.210/32
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute63:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 94.199.89.34/32
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute64:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 94.199.90.104/30
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute65:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 94.199.92.176/28
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute66:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 75.96.208.0/20
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute67:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 75.124.40.0/21
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute68:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.43.90.0/24
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute69:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 159.44.104.0/22
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute70:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 192.152.40.0/24
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute71:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 158.224.34.0/23
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute72:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 158.224.36.0/24
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+  PrivateSubnetAZcCNXRoute73:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 158.224.70.0/24
+      RouteTableId: !Ref PrivateRouteTableC
+      TransitGatewayId: !Ref TransitGatewayId
+
+Outputs:
+  NatGatewayPublicIp1:
+    Description: The public IP address of the NAT Gateway
+    Value: !Ref NatPublicIP1
+
+  NatGatewayPublicIp2:
+    Description: The public IP address of the NAT Gateway
+    Value: !Ref NatPublicIP2
+
+  NatGatewayPublicIp3:
+    Description: The public IP address of the NAT Gateway
+    Value: !Ref NatPublicIP3

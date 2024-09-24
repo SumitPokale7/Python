@@ -24,5 +24,6 @@ aws cloudformation deploy \
       --stack-name WH-${ENVIRONMENT}-CFN-DEFAULT-VPC-DELETION \
       --capabilities CAPABILITY_NAMED_IAM \
       --role-arn arn:aws:iam::${HUB_ID}:role/Gitlab-privileged-role_DEPLOYMENT \
+      --parameter-overrides HubName=${HUB_NAME} HubID=${HUB_ID} \
       --no-fail-on-empty-changeset
 

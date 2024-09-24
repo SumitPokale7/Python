@@ -1,0 +1,38 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: "Template to create a Lambda function describing VPC endpoints."
+
+Parameters:
+  HubName:
+    Type: String
+  HubID:
+    Type: String
+  BucketName:
+    Type: String
+Resources:
+  LambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Describes VPC endpoints in spokes.
+      FunctionName: !Sub
+        - "INTERIM-${HubName}-LMD-DESCRIBE-VPC-ENDPOINTS"
+        - HubName: !Select [0, !Split ["-CFN-", !Ref "AWS::StackName"]]
+      Handler: describe-vpc-endpoints.lambda_handler
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/CIP_MANAGER"
+      Timeout: 900
+      MemorySize: 256
+      Runtime: python3.12
+      CodeUri: '../src/'
+      Environment:
+        Variables:
+          HUB_NAME: !Ref HubName
+          HUB_ID: !Ref HubID
+          BUCKET_NAME: !Ref BucketName
+      Tags:
+        managed-by: aws-platform-team
+
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${LambdaFunction}"

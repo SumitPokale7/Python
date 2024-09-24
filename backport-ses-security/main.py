@@ -227,12 +227,7 @@ def deploy_ses_security(
                 "ParameterKey": "NamingPrefix",
                 "ParameterValue": resources_prefix,
                 "UsePreviousValue": True,
-            },
-            {
-                "ParameterKey": "AccountName",
-                "ParameterValue": spoke_account_name,
-                "UsePreviousValue": True,
-            },
+            }
         ],
         EnableTerminationProtection=False,
         Capabilities=["CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND"],

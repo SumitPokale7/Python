@@ -1,10 +1,19 @@
 from botocore.exceptions import ClientError
 import boto3
 import logging
-from datetime import datetime
+import datetime
+from botocore.exceptions import WaiterError
+import csv
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logging.basicConfig(
+    filename=f"extract-inventory-logfile-{datetime.datetime.now().strftime('%d-%m-%y-%H-%M-%S')}.log",
+    filemode="a",
+    format="%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s",
+    datefmt="%H:%M:%S",
+    level=logging.INFO,
+)
+
+logger = logging.getLogger("urbanGUI")
 
 
 LONG_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S"
@@ -48,6 +57,7 @@ def extract_functions(
     _account_id: str = None,
     _region: str = "eu-west-1",
     _extract_logs: str = "NO",
+    _extract_function_urls: str = "NO",
     max_item: int = 50,
 ):
     try:
@@ -65,19 +75,24 @@ def extract_functions(
         return [
             {
                 "function_name": one_function["FunctionName"],
-                "runtime": one_function["Runtime"]
-                if "Runtime" in one_function
-                else "NA",
+                "runtime": (
+                    one_function["Runtime"] if "Runtime" in one_function else "NA"
+                ),
                 "code_size(kb)": one_function["CodeSize"] / 1024,
                 "memory_size": one_function["MemorySize"],
                 "function_arn": one_function["FunctionArn"],
                 "last_modification": one_function["LastModified"],
                 "account_id": _account_id,
-                "last_execution": extract_logs(
-                    session, one_function["FunctionName"], _account_id
-                )
-                if _extract_logs == "YES"
-                else "Na",
+                "last_execution": (
+                    extract_logs(session, one_function["FunctionName"], _account_id)
+                    if _extract_logs == "YES"
+                    else "Na"
+                ),
+                "function_urls": (
+                    extract_function_urls(lambda_client, one_function["FunctionArn"])
+                    if _extract_function_urls == "YES"
+                    else "Na"
+                ),
             }
             for response in response_iterator
             for one_function in response["Functions"]
@@ -91,6 +106,24 @@ def extract_functions(
             return None
         else:
             raise err
+
+
+def extract_function_urls(
+    client: boto3.session.Session.client,
+    function_name: str,
+    max_item: int = 50,
+):
+    try:
+        paginator = client.get_paginator("list_function_url_configs")
+        response_iterator = paginator.paginate(
+            FunctionName=function_name,
+            PaginationConfig={"PageSize": max_item},
+        )
+        return [
+            c for response in response_iterator for c in response["FunctionUrlConfigs"]
+        ]
+    except Exception:
+        return []
 
 
 def extract_roles(
@@ -255,9 +288,11 @@ def extract_kms(
 
                 volumes.append(
                     {
-                        "instance": one["Attachments"][0]["InstanceId"]
-                        if len(one["Attachments"]) > 0
-                        else "not attached",
+                        "instance": (
+                            one["Attachments"][0]["InstanceId"]
+                            if len(one["Attachments"]) > 0
+                            else "not attached"
+                        ),
                         "volume": volume.volume_id,
                         "state": volume.state,
                         "aliases": ",".join(
@@ -318,7 +353,7 @@ def extract_logs(
                     last_streams = []
                     for event_stream in logevent["logStreams"][0:2]:
                         if "lastEventTimestamp" in event_stream:
-                            dt_obj = datetime.datetime.fromtimestamp(
+                            dt_obj = datetime.fromtimestamp(
                                 event_stream["lastEventTimestamp"] / 1000
                             )
                             last_streams.append(convert_date_str(dt_obj))
@@ -586,6 +621,342 @@ def extract_provisioned_products(
                 "status": response["Status"],
             }
             for response in response["ProvisionedProducts"]
+        ]
+
+    except ClientError as err:
+        if err.response["Error"]["Code"] == "AccessDenied":
+            logger.warning(
+                f"cannot assume the role for the role:{target_role_arn} because of {err}"
+            )
+            return None
+        else:
+            raise err
+
+
+def get_ami_name(ec2_client, ami_id):
+    try:
+        response = ec2_client.describe_images(ImageIds=[ami_id])
+        if "Images" in response and len(response["Images"]) > 0:
+            return response["Images"][0]["Name"]
+        return "Unknown"
+    except Exception as e:
+        print(f"An error occurred while describe image {ami_id}: {e}")
+        return None
+
+
+def get_instances(ec2_client, ssm_client, instance_tagging, os_platform):
+    instances = []
+    try:
+        paginator = ec2_client.get_paginator("describe_instances")
+        response_iterator = paginator.paginate()
+        for response in response_iterator:
+            for reservation in response["Reservations"]:
+                for instance in reservation["Instances"]:
+                    instance_ami_id = instance["ImageId"]
+                    instance_id = instance["InstanceId"]
+                    domain_status = "NA"
+                    cip_status = "N/A"
+                    join_ad = "N/A"
+                    host_name = "N/A"
+                    bp_unique_name = "N/A"
+                    if (
+                        instance["State"]["Name"] == "running"
+                        and instance_tagging is False
+                    ):
+                        # Run SSM command
+                        ssm_output = run_ssm_command(ssm_client, instance_id, instance.get("PlatformDetails", "Unknown"))
+                        if "567862016" in ssm_output or "NERR_Success" in ssm_output:
+                            domain_status = "domain_joined"
+
+                        else:
+                            domain_status = "not_domain_joined"
+                        host_name = ssm_output.split("\n")[-1]
+                        # Get the values of cip-status and JoinAD tags
+                        for tag in instance.get("Tags", []):
+                            if tag["Key"] == "cip-status":
+                                cip_status = tag["Value"]
+                            elif tag["Key"] == "JoinAD":
+                                join_ad = tag["Value"]
+                            if tag["Key"] == "bp-unique-name":
+                                bp_unique_name = tag["Value"]
+                    # Tagging specific instances based on platform and instance tagging flag
+                    if instance_tagging is True:
+                        if instance.get("PlatformDetails", "") == os_platform:
+                            instances.append(
+                                {
+                                    "instance_id": instance["InstanceId"],
+                                    "instance_state": instance["State"]["Name"],
+                                    "instance_ami_name": get_ami_name(
+                                        ec2_client, instance_ami_id
+                                    ),
+                                    "image_id": instance_ami_id,
+                                    "cip_status": cip_status,
+                                    "join_ad": join_ad,
+                                    "os": instance.get("PlatformDetails", "Unknown"),
+                                    "domain_status": domain_status,
+                                }
+                            )
+                    else:
+                        instances.append(
+                            {
+                                "instance_id": instance["InstanceId"],
+                                "instance_state": instance["State"]["Name"],
+                                "instance_ami_name": get_ami_name(
+                                    ec2_client, instance_ami_id
+                                ),
+                                "image_id": instance_ami_id,
+                                "cip_status": cip_status,
+                                "join_ad": join_ad,
+                                "os": instance.get("PlatformDetails", "Unknown"),
+                                "domain_status": domain_status,
+                                "host_name": host_name,
+                                "bp-unique-name": bp_unique_name
+                            }
+                        )
+
+        return instances
+    except Exception as e:
+        print(f"An error occurred while describe instance {instance_id}: {e}")
+        return None
+
+
+def run_ssm_command(ssm_client, instance_id, instance_os):
+    ssm_output = "NA"
+    try:
+        if ("Linux" in instance_os):
+            response = ssm_client.send_command(
+                InstanceIds=[instance_id],
+                DocumentName="AWS-RunShellScript",
+                Parameters={"commands": ["id bp1\\\\serv-W-join-dev -u", "hostname"]},
+            )
+        elif (instance_os == "Windows"):
+            response = ssm_client.send_command(
+                InstanceIds=[instance_id],
+                DocumentName="AWS-RunPowerShellScript",
+                Parameters={"commands": ["nltest /sc_query:bp1.ad.bp.com", "hostname"]},
+            )
+        else:
+            raise Exception("Unsupported OS platform")
+
+        command_id = response["Command"]["CommandId"]
+        # Wait for the command to complete
+        ssm_client.get_waiter("command_executed").wait(
+            CommandId=command_id, InstanceId=instance_id
+        )
+        output = ssm_client.get_command_invocation(
+            CommandId=command_id,
+            InstanceId=instance_id,
+        )
+        # Check if output is available
+        if "StandardOutputContent" in output:
+            ssm_output = output["StandardOutputContent"].strip()
+            logger.info(f"SSM output for instance {instance_id}: {ssm_output}")
+        else:
+            logger.info("\n StandardOutputContent is empty")
+            ssm_output = "NA"
+
+        return ssm_output
+    except WaiterError as e:
+        logger.info(f"SSM command execution failed for instance {instance_id}: {e}")
+        ssm_output = "ssm-timeout\nNA"
+        result = ssm_client.get_command_invocation(
+            CommandId=command_id,
+            InstanceId=instance_id
+        )
+        logger.info("Standard Output:" + result['StandardOutputContent'])
+        logger.info("Standard Error:" + result['StandardErrorContent'])
+        return ssm_output
+
+    except Exception as e:
+        print(
+            f"An error occurred while running SSM command on instance {instance_id}: {e}"
+        )
+        ssm_output = "ssm-notfound\nNA"
+        return ssm_output
+
+
+def extract_domain_instances(
+    session: boto3.session.Session,
+    _account_id: str = None,
+    _region: str = "eu-west-1",
+    _instance_tagging: bool = False,
+    _os_platform: str = "Windows",
+    _tagging_dry_run: bool = True,
+):
+    try:
+        # iterate over only spoke accounts
+        if _account_id:
+            target_role_arn = f"arn:aws:iam::{_account_id}:role/AWS_PLATFORM_ADMIN"
+            ec2_client = create_client("ec2", target_role_arn, _region, session)
+            ssm_client = create_client("ssm", target_role_arn, _region, session)
+        # iterate over only hub account
+        else:
+            ec2_client = session.client("ec2")
+            ssm_client = session.client("ssm")
+        instances = get_instances(
+            ec2_client, ssm_client, _instance_tagging, _os_platform
+        )
+        if (
+            _instance_tagging is True
+        ):  # Tagging instances with JoinAD and cip-status tags
+
+            def read_csv_file(file_path):
+                """
+                Function to read the csv file of accounts that have been tagged
+                This would be helpful when the script breaks due to local crdentials
+                expiration in the middle of tagging specific to H3 accounts
+                """
+                account_ids = []
+                with open(file_path, "r") as file:
+                    reader = csv.reader(file)
+                    next(reader)  # Skip header row
+                    for row in reader:
+                        account_id = row[0]
+                        account_ids.append(account_id)
+                return account_ids
+
+            file_path = "completed-accounts.csv"
+            ib_accounts = [
+                "495416159460",
+                "974944152507",
+                "768961172930",
+            ]  # List of IB accounts
+            account_ids = read_csv_file(file_path)
+            if (
+                _account_id not in account_ids
+            ):  # Tagging only for accounts that have not been tagged
+                logger.info(f"Tagging instances for account {_account_id}")
+                for instance in instances:
+                    instance_id = instance["instance_id"]
+                    tags = ec2_client.describe_tags(
+                        Filters=[{"Name": "resource-id", "Values": [instance_id]}]
+                    )["Tags"]
+                    instance["tags"] = tags
+                    image_owner = ec2_client.describe_images(
+                        ImageIds=[instance["image_id"]]
+                    )["Images"][0]["OwnerId"]
+                    # Tagging only non IB account owned image based instances
+                    if image_owner not in ib_accounts:
+                        logger.info(
+                            f"Non IB image : {instance['image_id']} having owner as : {image_owner} for instance {instance_id}, hence proceeding with tagging"
+                        )
+                    else:
+                        logger.info(
+                            f"IB image : {instance['image_id']} having owner as : {image_owner} for instance {instance_id}, hence skipping tagging"
+                        )
+                        instance["tagging"] = "skipped as an IB image instance"
+                        continue
+
+                    # Check if JoinAD and cip-status tags are present in the tags
+                    tag_keys = [tag["Key"] for tag in tags]
+                    if "JoinAD" not in tag_keys and "cip-status" not in tag_keys:
+                        # Tags to be appended
+                        tags_to_create = [
+                            {"Key": "JoinAD", "Value": "False"},
+                            {"Key": "cip-status", "Value": "bootstrap-skipped"},
+                        ]
+                        try:
+                            if _tagging_dry_run is False:
+                                ec2_client.create_tags(
+                                    Resources=[instance_id], Tags=tags_to_create
+                                )
+                                logger.info(
+                                    f"Tags created for instance {instance_id} from account {_account_id}"
+                                )
+                                instance_id = instance["instance_id"]
+                                tags = ec2_client.describe_tags(
+                                    Filters=[
+                                        {"Name": "resource-id", "Values": [instance_id]}
+                                    ]
+                                )["Tags"]
+                                instance["tags"] = tags
+                                instance["tagging"] = "updated"
+                            else:
+                                logger.info(
+                                    f"Tags could have been created for instance {instance_id} from account {_account_id}"
+                                )
+                                instance["tags"] = tags
+                                instance["tagging"] = (
+                                    "skipped tagging as it was a dry run"
+                                )
+
+                        except Exception as e:
+                            instance["tagging"] = "failed to create tags"
+                            logger.error(
+                                f"Failed to create tags for instance {instance_id} from account {_account_id}: {e}"
+                            )
+                    elif "JoinAD" in tag_keys and "cip-status" in tag_keys:
+                        logger.info(
+                            f"Both tags already present for instance {instance_id} from account {_account_id}, so skipping tagging"
+                        )
+                        instance["tagging"] = "skipped as tags are present"
+                    elif "JoinAD" in tag_keys:
+                        logger.info(
+                            f"JoinAD tag already present for instance {instance_id} from account {_account_id}, so skipping tagging"
+                        )
+                        instance["tagging"] = "skipped as JoinAD tag is present"
+                    elif "cip-status" in tag_keys:
+                        logger.info(
+                            f"cip-status tag already present for instance {instance_id} from account {_account_id}, so skipping tagging"
+                        )
+                        instance["tagging"] = "skipped as cip-status tag is present"
+                with open(file_path, "a", newline="") as file:
+                    writer = csv.writer(file)
+                    writer.writerow([_account_id])
+                # Return specific to tagging
+                return [
+                    {
+                        "account_id": _account_id,
+                        "region": _region,
+                        "instance_id": instance["instance_id"],
+                        "instance_state": instance["instance_state"],
+                        "instance_ami_name": instance["instance_ami_name"],
+                        "image_id": instance["image_id"],
+                        "instance_cip_status": instance["cip_status"],
+                        "instance_join_ad": instance["join_ad"],
+                        "OS": instance["os"],
+                        "domain_status": instance["domain_status"],
+                        "tags": instance["tags"],
+                        "tagging": instance["tagging"],
+                    }
+                    for instance in instances
+                ]
+            else:
+                return [
+                    {
+                        "account_id": _account_id,
+                        "region": _region,
+                        "instance_id": instance["instance_id"],
+                        "instance_state": instance["instance_state"],
+                        "instance_ami_name": instance["instance_ami_name"],
+                        "image_id": instance["image_id"],
+                        "instance_cip_status": instance["cip_status"],
+                        "instance_join_ad": instance["join_ad"],
+                        "OS": instance["os"],
+                        "domain_status": instance["domain_status"],
+                        "tags": "",
+                        "tagging": "skipped as account windows instances have been tagged already",
+                        "tagging_dry_run": _tagging_dry_run,
+                    }
+                    for instance in instances
+                ]
+
+        return [
+            {
+                "account_id": _account_id,
+                "region": _region,
+                "instance_id": instance["instance_id"],
+                "instance_state": instance["instance_state"],
+                "instance_ami_name": instance["instance_ami_name"],
+                "instance_cip_status": instance["cip_status"],
+                "instance_join_ad": instance["join_ad"],
+                "OS": instance["os"],
+                "domain_status": instance["domain_status"],
+                "tagging_dry_run": _tagging_dry_run,
+                "host_name": instance["host_name"],
+                "bp-unique-name": instance["bp-unique-name"]
+            }
+            for instance in instances
         ]
 
     except ClientError as err:
@@ -891,9 +1262,11 @@ def tags_per_volume(account_id, ec2_client, item_per_page, key_tag):
             volumes.append(
                 {
                     "account_id": account_id,
-                    "instance": one["Attachments"][0]["InstanceId"]
-                    if len(one["Attachments"]) > 0
-                    else "Na",
+                    "instance": (
+                        one["Attachments"][0]["InstanceId"]
+                        if len(one["Attachments"]) > 0
+                        else "Na"
+                    ),
                     "volume": one["VolumeId"],
                     "state": one["State"],
                     "tags": _tags,
@@ -996,6 +1369,73 @@ def extract_ses_verified_identities(
                 f"cannot assume the role for the role:{target_role_arn} because of {err}"
             )
             return None
+        else:
+            raise err
+
+
+def extract_inspector(
+    session: boto3.session.Session, _account_id: str = None, _region: str = "eu-west-1"
+):
+    result = []
+    try:
+        # iterate over only spoke accounts
+        if _account_id:
+            target_role_arn = f"arn:aws:iam::{_account_id}:role/CIP_INSPECTOR"
+            ins_client = create_client("inspector2", target_role_arn, _region, session)
+        # iterate over only hub account
+        else:
+            ins_client = session.client("inspector2")
+
+        # Get the account status
+        response = ins_client.batch_get_account_status()
+
+        # Check if response is not null
+        if response and 'accounts' in response:
+            accounts = response['accounts']
+            if accounts:
+                for account in accounts:
+                    account_id = account.get('accountId')
+                    status = account.get('state', {}).get('status')
+                    print(f"Account ID: {account_id}, Status: {status}")
+                    result.append(
+                        {
+                            "account_id": account_id,
+                            "region": _region,
+                            "inspector status": status
+                        }
+                    )
+            else:
+                print("No accounts found in the response.")
+                result.append(
+                        {
+                            "account_id": _account_id,
+                            "region": _region,
+                            "status": "no account found"
+                        }
+                    )
+        else:
+            print("No accounts found in the response.")
+            result.append(
+                    {
+                        "account_id": _account_id,
+                        "region": _region,
+                        "inspector status": "no account found"
+                    }
+                )
+        return result
+
+    except ClientError as err:
+        if err.response["Error"]["Code"] == "AccessDenied":
+            logger.warning(
+                f"cannot assume the role for the role:{target_role_arn} because of {err}"
+            )
+            result.append(
+                        {
+                            "account_id": _account_id,
+                            "region": _region,
+                            "inspector status": "AccessDenied"
+                        }
+                    )
         else:
             raise err
 

@@ -27,8 +27,10 @@ EXTRACT_TAGS: Final = 13
 EXTRACT_SES_IDENTITIES: Final = 14
 EXTRACT_EVENT_RULES: Final = 15
 EXTRACT_SSM_DOCS: Final = 16
+EXTRACT_DOMAIN_INSTANCES: Final = 17
+EXTRACT_INSPECTOR: Final = 18
 
-EXTRACTION_TYPE: Final = EXTRACT_LG
+EXTRACTION_TYPE: Final = EXTRACT_DOMAIN_INSTANCES
 
 MAX_ITEM: Final = os.getenv("PAGE_LIMIT", 50)
 ARE_SPOKES_INCLUDED: Final = os.getenv(
@@ -38,25 +40,37 @@ PROCESS_FAILED_SPOKES: Final = os.getenv(
     "PROCESS_FAILED_SPOKES", "NO"
 )  # YES: process failed spokes
 IS_ENTERPRISE: Final = os.getenv(
-    "IS_ENTERPRISE", "YES"
+    "IS_ENTERPRISE", "NO"
 )  # YES: process enterprise accounts
-HUB_NAMES: Final = os.getenv("HUB_NAMES", "WE1-P2")
+HUB_NAMES: Final = os.getenv("HUB_NAMES", "WH-00H1")
 EXTRACT_LOGS = os.getenv("EXTRACT_LOGS", "NO")
+EXTRACT_FUNCTION_URLS = os.getenv("EXTRACT_FUNCTION_URLS", "NO")
 ENVIRONMENT_TYPE = os.getenv("ENVIRONMENT_TYPE", "ALL")  # ALL, Prod, NonProd, Sandbox
 ACCOUNT_TYPE = os.getenv(
-    "ACCOUNT_TYPE", "ALL"
+    "ACCOUNT_TYPE", "Connected"
 )  # ALL, Foundation, Standalone, Sandbox, Connected, Specific
 SEARCH_REGION = os.getenv(
     "SEARCH_REGION",
     "eu-west-1",
 )  # SEARCH_REGION = os.getenv("SEARCH_REGION", "eu-west-1")
-KEY_TAG_NAME = "cip-"
-SPECIFIC_ACCOUNT = "768961172930"
+print
+KEY_TAG_NAME = ""
+SPECIFIC_ACCOUNT = "495416159460"
 EXTRACT_TAGS_RESOURCE_TYPE = os.getenv("EXTRACT_TAGS_RESOURCE_TYPE", "EC2")
 RESUME_EXTRACTION = os.getenv("RESUME_EXTRACTION", "NO")
+INSTANCE_TAGGING = os.getenv("INSTANCE_TAGGING", False)
+OS_PLATFORM = os.getenv("OS_PLATFORM", "All")  # Windows, Linux/UNIX, All
+TAGGING_DRY_RUN = os.getenv("TAGGING_DRY_RUN", False)
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logging.basicConfig(
+    filename=f"extract-inventory-logfile-{datetime.datetime.now().strftime('%d-%m-%y-%H-%M-%S')}.log",
+    filemode="a",
+    format="%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s",
+    datefmt="%H:%M:%S",
+    level=logging.INFO,
+)
+
+logger = logging.getLogger("urbanGUI")
 
 logger.info(f"max item: {MAX_ITEM}")
 
@@ -153,6 +167,8 @@ def key_word_to_sort(extraction_type: int):
         return "account_id"
     elif extraction_type == EXTRACT_INSTANCES:
         return "account_id"
+    elif extraction_type == EXTRACT_DOMAIN_INSTANCES:
+        return "account_id"
     elif extraction_type == EXTRACT_IMAGES:
         return "image_id"
     elif extraction_type == EXTRACT_TAGS:
@@ -162,6 +178,8 @@ def key_word_to_sort(extraction_type: int):
     elif extraction_type == EXTRACT_EVENT_RULES:
         return "account_id"
     elif extraction_type == EXTRACT_SSM_DOCS:
+        return "account_id"
+    elif extraction_type == EXTRACT_INSPECTOR:
         return "account_id"
     else:
         raise Exception("incorrect extraction type")
@@ -175,7 +193,7 @@ def extraction(
 ):
     if what_to_extract == EXTRACT_LAMBDAS:
         return extraction_utils.extract_functions(
-            session, _account_id, _region, EXTRACT_LOGS, MAX_ITEM
+            session, _account_id, _region, EXTRACT_LOGS, EXTRACT_FUNCTION_URLS, MAX_ITEM
         )
     elif what_to_extract == EXTRACT_ROLES:
         return extraction_utils.extract_roles(session, _account_id, _region, MAX_ITEM)
@@ -201,6 +219,10 @@ def extraction(
         )
     elif what_to_extract == EXTRACT_INSTANCES:
         return extraction_utils.extract_instances(session, _account_id, _region)
+    elif what_to_extract == EXTRACT_DOMAIN_INSTANCES:
+        return extraction_utils.extract_domain_instances(
+            session, _account_id, _region, INSTANCE_TAGGING, OS_PLATFORM, TAGGING_DRY_RUN
+        )
     elif what_to_extract == EXTRACT_IMAGES:
         return extraction_utils.extract_images(session, _account_id, SEARCH_REGION)
     elif what_to_extract == EXTRACT_TAGS:
@@ -214,6 +236,10 @@ def extraction(
         )
     elif what_to_extract == EXTRACT_SES_IDENTITIES:
         return extraction_utils.extract_ses_verified_identities(
+            session, _account_id, _region
+        )
+    elif what_to_extract == EXTRACT_INSPECTOR:
+        return extraction_utils.extract_inspector(
             session, _account_id, _region
         )
     elif what_to_extract == EXTRACT_EVENT_RULES:
@@ -238,13 +264,13 @@ for hub_name in hub_names:
                 profile_name=enterprise_profile, region_name=one_region
             )
         else:
-            PROFILE = f"{hub_name}-role_READONLY"
+            PROFILE = f"{hub_name}-role_OPERATIONS"
             try:
                 dev_session = boto3.session.Session(
                     profile_name=PROFILE, region_name=one_region
                 )
             except botocore.exceptions.ProfileNotFound:
-                PROFILE = f"{hub_name}-role_DEVOPS"
+                PROFILE = f"{hub_name}-role_OPERATIONS"
                 dev_session = boto3.session.Session(
                     profile_name=PROFILE, region_name=one_region
                 )
@@ -275,13 +301,11 @@ for hub_name in hub_names:
                     )
                     continue
                 account_ids = get_account_ids(table_name, ACCOUNT_TYPE, one_region)
-
                 if account_ids is None:
                     logger.warning(
                         f"there are no accounts for the region {one_region} in the hub {hub_name}"
                     )
                     continue
-
             accounts = account_ids.items()
             total_accounts = len(accounts)
             i = 1
@@ -318,7 +342,6 @@ for hub_name in hub_names:
                 except Exception as e:
                     logger.error(f"An exception occurred:{e}")
                     error_reports.append((account_id, e))
-
         elif ARE_SPOKES_INCLUDED.lower() == "no":
             try:
                 tmp_list = extraction(dev_session, None, EXTRACTION_TYPE)
@@ -344,7 +367,7 @@ for hub_name in hub_names:
             )
         else:
             logger.warning(
-                f"no data found for the extraction {EXTRACTION_TYPE} for the account id {account_id if IS_ENTERPRISE == 'NO' else hub_name } in {one_region}"
+                f"no data found for the extraction {EXTRACTION_TYPE} for the account id {account_id if IS_ENTERPRISE == 'NO' else hub_name} in {one_region}"
             )
 
         if len(error_reports) > 0:

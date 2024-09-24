@@ -4,7 +4,7 @@
 * Authenticate using `aws-connect`
 * `cd spoke-parallel-processor`
 * fetch your personal access token from azure devops (https://dev.azure.com.mcas.ms/bp-digital/_usersSettings/tokens)
-* export `PERSONAL_ACCESS_TOKEN=<PERSONAL_ACCESS_TOKEN_EXPORTED_FROM_AZURE_DEVOPS>``
+* export `PIP_INDEX_URL` this should point to Azure DevOps artifacts with your personal token within the URI
 * export `AWS_DEFAULT_PROFILE` to the role you want to use
 * export `ASSUME_ROLE_NAME=<SPOKE_ROLE_TO_ASSUME>`
 * export `HUB_NAME=<HUB_NAME>` e.g. `WH-0001`

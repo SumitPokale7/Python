@@ -92,9 +92,28 @@ def get_iam_policy_document(client, policy_arn) -> dict:
 
 
 if __name__ == "__main__":
-    beta_account = Account("TEST", "TEST-0010", [])
-    preprod_account = Account("PROD", "PROD-0010", [])
+    beta_account = Account("WE1-B1", "WE1-B1-0105", [])
+    preprod_account = Account("WE1-T1", "WE1-T1-0010", [])
     access_roles = [
+        "-role_OPERATIONS",
+        "-role_NETWORK-ADM",
+        "-role_NETWORK-RO",
+        "-role_IAM-ADM",
+        "-role_DS-RO",
+        "-role_DS-METADATA",
+        "-role_DS-INVESTIGATION",
+        "-role_SOC",
+        "-role_KMS",
+        "-role_COSTOPT",
+        "-role_SSM",
+        "-role_CLOUDFORMATION",
+        "-role_DsServices",
+        "-role_DsServicesLambdaExecutionRole",
+        "-role_AUTOMATION",
+        "-role_UnitScheduler",
+        "-role_UnitScheduler_BYOLambda",
+        "-role_UnitScheduler_Execution",
+        "CIP_SelfService",
         "-role_BACKUP",
     ]
 

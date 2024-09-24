@@ -100,6 +100,35 @@ Here is a quick guide:
    - ENVIRONMENT_TYPE = os.getenv("ENVIRONMENT_TYPE", "ALL")  
    - ACCOUNT_TYPE = os.getenv("ACCOUNT_TYPE", "ALL")
 
+9. Extract instance details with domain join or not if the OS is Windows.
+
+   - Set the env parameters:
+   - IS_ENTERPRISE=Yes, 
+   - HUB_NAMES="WH-00H1", 
+   - EXTRACTION_TYPE: Final = EXTRACT_DOMAIN_INSTANCES, 
+   - ARE_SPOKES_INCLUDED=YES
+   - ENVIRONMENT_TYPE = os.getenv("ENVIRONMENT_TYPE", "ALL")  
+   - ACCOUNT_TYPE = os.getenv("ACCOUNT_TYPE", "Connected")
+
+10. Tagg the instances if the OS is Windows.
+   - Create completed-accounts.csv empty file with account-id as a column in the script directory
+   - Set the env parameters:
+   - IS_ENTERPRISE=No, 
+   - HUB_NAMES="WH-00H1", 
+   - EXTRACTION_TYPE: Final = EXTRACT_DOMAIN_INSTANCES, 
+   - ARE_SPOKES_INCLUDED=YES
+   - ENVIRONMENT_TYPE = os.getenv("ENVIRONMENT_TYPE", "ALL")  
+   - ACCOUNT_TYPE = os.getenv("ACCOUNT_TYPE", "Connected")
+   - INSTANCE_TAGGING = os.getenv("INSTANCE_TAGGING", True)
+   - OS_PLATFORM = os.getenv("OS_PLATFORM", "Windows")
+   - TAGGING_DRY_RUN = os.getenv("TAGGING_DRY_RUN", False) : This can be changed to False for tagging
+
+
+This will extra instance information while when the instance is Windows it will check if the instance is part of domain or not and output the required information.
+
+This follow same extraction method of others
+You can use this same as other input parameters.
+
 Running on enterprise account
         
 ```bash

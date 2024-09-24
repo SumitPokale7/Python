@@ -25,3 +25,4 @@ export HUB_ID='<hub_id>'                    # hub account ID
 }
 ```
 
+NOTE: You can alternatively only use regions as payload if you want to remove default vpc from all active accounts

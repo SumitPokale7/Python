@@ -65,6 +65,8 @@ Resources:
       Environment:
         Variables:
           s3_arn: !Ref S3Arn
+      Tags:
+        managed-by: aws-platform-team
       
   LambdaLogGroup:
     DeletionPolicy: Retain

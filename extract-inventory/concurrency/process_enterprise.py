@@ -24,11 +24,19 @@ from time import time
 from concurrent.futures import ThreadPoolExecutor
 
 EXTRACT_CE_RESOURCES: Final = 111
+EXTRACT_CE_INSTANCES: Final = 112
+EXTRACT_CE_VOLUMES: Final = 113
+EXTRACT_CE_SNAPSHOTS: Final = 114
+EXTRACT_CE_ASGS: Final = 115
 
-EXTRACTION_TYPE: Final = EXTRACT_CE_RESOURCES
+EXTRACTION_TYPE: Final = EXTRACT_CE_ASGS
 
 SERVICE_MAP = {
     EXTRACT_CE_RESOURCES: "resourcegroupstaggingapi",
+    EXTRACT_CE_INSTANCES: "ec2",
+    EXTRACT_CE_VOLUMES: "ec2",
+    EXTRACT_CE_SNAPSHOTS: "ec2",
+    EXTRACT_CE_ASGS: "autoscaling",
 }
 
 SUBMIT_LIMIT_PER_FETCH = 50
@@ -37,6 +45,7 @@ ALPHA_CE_NAMES: Final = ["WU2-A1", "WE1-A1"]
 BETA_CE_NAMES: Final = ["WU2-U1", "WE1-U1", "WU2-B1", "WE1-B1"]
 PREPROD_CE_NAMES: Final = ["WE1-T1", "WU2-T1", "WE1-O2", "WE1-P2", "WU2-P2"]
 PROD_CE_NAMES: Final = ["WE1-O3", "WU2-P3", "WE1-P3", "WU2-P1", "WE1-P1"]
+NON_PROD_NAMES: Final = ALPHA_CE_NAMES + BETA_CE_NAMES
 EVERY_CE_NAMES: Final = (
     ALPHA_CE_NAMES + BETA_CE_NAMES + PREPROD_CE_NAMES + PROD_CE_NAMES
 )
@@ -47,7 +56,7 @@ logger = logging.getLogger(__name__)
 error_reports = []
 function_reports = []
 
-TARGET_ENVS = ALPHA_CE_NAMES
+TARGET_ENVS = NON_PROD_NAMES
 
 
 def get_session(ce_name, region):
@@ -122,32 +131,15 @@ def tag_date():
 def key_word_to_sort(extraction_type: int):
     if extraction_type == EXTRACT_CE_RESOURCES:
         return "ce_name"
+    elif extraction_type in [
+        EXTRACT_CE_INSTANCES,
+        EXTRACT_CE_VOLUMES,
+        EXTRACT_CE_SNAPSHOTS,
+        EXTRACT_CE_ASGS,
+    ]:
+        return "account_id"
     else:
         raise Exception("incorrect extraction type")
-
-
-def create_client(
-    service: str, role: str, region: str, hub_session: boto3.session.Session
-):
-    """Creates a BOTO3 client using the correct target accounts Role."""
-    try:
-        sts_client = hub_session.client("sts")
-        creds = sts_client.assume_role(
-            RoleArn=role, RoleSessionName="CeInventorySession"
-        )
-
-        client = boto3.client(
-            service,
-            aws_access_key_id=creds["Credentials"]["AccessKeyId"],
-            aws_secret_access_key=creds["Credentials"]["SecretAccessKey"],
-            aws_session_token=creds["Credentials"]["SessionToken"],
-            region_name=region,
-        )
-    except Exception as e:
-        logger.error(f"cannot assume the role: {e}")
-        return None
-
-    return client
 
 
 def extraction(all_args):
@@ -156,6 +148,14 @@ def extraction(all_args):
         return extraction_utils.extract_ce_resources(
             (_ce_name, _region, session_client)
         )
+    elif what_to_extract == EXTRACT_CE_INSTANCES:
+        return extraction_utils.extract_instances((_ce_name, _region, session_client))
+    elif what_to_extract == EXTRACT_CE_VOLUMES:
+        return extraction_utils.extract_volumes((_ce_name, _region, session_client))
+    elif what_to_extract == EXTRACT_CE_SNAPSHOTS:
+        return extraction_utils.extract_snapshots((_ce_name, _region, session_client))
+    elif what_to_extract == EXTRACT_CE_ASGS:
+        return extraction_utils.extract_asgs((_ce_name, _region, session_client))
     else:
         raise Exception("no proper option was given")
 
@@ -164,15 +164,19 @@ if __name__ == "__main__":
     ts = time()
 
     ce_names = []
+
     for env in TARGET_ENVS:
         region = "eu-west-1" if env[0:3] == "WE1" else "us-east-2"
 
-        res_client = get_session(env, region).client("resourcegroupstaggingapi")
+        spoke_client = get_session(env, region).client(SERVICE_MAP[EXTRACTION_TYPE])
 
-        temp = get_ce_envs(env, region)
-        ce_names.extend(
-            [(item, region, res_client, EXTRACT_CE_RESOURCES) for item in temp]
-        )
+        if EXTRACTION_TYPE == EXTRACT_CE_RESOURCES:
+            temp = get_ce_envs(env, region)
+            ce_names.extend(
+                [(item, region, spoke_client, EXTRACTION_TYPE) for item in temp]
+            )
+        else:
+            ce_names.extend([(env, region, spoke_client, EXTRACTION_TYPE)])
 
     with ThreadPoolExecutor() as result_executor:
         results = []
