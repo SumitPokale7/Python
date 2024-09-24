@@ -1,7 +1,5 @@
 # Scripts
-This repository contains any scripts which were developed to perform ad-hoc tasks.
-
-# Note : Do not pin package verions in requirements.txt files as we need to exclude this from prisma vulnerability detection.
+This repository contains any scripts which were developed to perform AWS tasks.
 
 # Overview
 
