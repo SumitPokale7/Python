@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO)
 # accounts_names = ['A1', 'B1', 'U1', 'T1', 'P1', 'P2', 'P3', 'O2', 'O3']
 accounts_names = ["A1"]
 
-regions = {"WU2": "us-east-2", "WE1": "eu-west-1"}
+regions = {"WU2": "us-east-2", "AccountName": "eu-west-1"}
 
 tagged_resource_types = [
     "network-interface",

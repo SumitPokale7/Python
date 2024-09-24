@@ -20,7 +20,7 @@ HUB_TARGET_ROLE = f"arn:aws:iam::{HUB_ACCOUNT_ID}:role/CIP_MANAGER"
 
 
 region_to_shorthand = {
-    "eu-west-1": "WE1",
+    "eu-west-1": "AccountName",
     "us-east-2": "WU2",
     "ap-southeast-2": "WAP2",
     "ap-southeast-1": "WAP1",

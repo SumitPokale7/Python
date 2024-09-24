@@ -23,13 +23,13 @@ set +ex
 # Iterates through array and sets AWS default profile for the each IaaS account
 # And also runs python script for the each IaaS account
 declare -a iaas_accounts=(
-    "WE1-A1" "WU2-A1"
-    "WE1-B1" "WU2-B1"
-    "WE1-T1" "WU2-T1"
-    "WE1-U1" "WU2-U1"
-    "WE1-P1" "WU2-P1"
-    "WE1-P2" "WU2-P2"
-    "WE1-P3" "WU2-P3"
+    "AccountName" "AccountName"
+    "AccountName" "AccountName"
+    "AccountName" "AccountName"
+    "AccountName" "AccountName"
+    "AccountName" "AccountName"
+    "AccountName" "AccountName"
+    "AccountName" "AccountName"
 )
 
 IRELAND="eu-west-1"
@@ -38,7 +38,7 @@ OUTPUT_FILE="subnets-report.csv"
 
 for acc in ${iaas_accounts[@]};
 do
-    if [[ $acc = WE1* ]]; then
+    if [[ $acc = AccountName* ]]; then
     export AWS_DEFAULT_PROFILE=${acc}-role_DEVOPS
     python assess-subnets.py --account-name ${acc} --region  ${IRELAND} --output-file ${OUTPUT_FILE}
     elif [[ $acc = WU2* ]]; then

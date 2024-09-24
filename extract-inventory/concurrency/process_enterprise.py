@@ -41,10 +41,10 @@ SERVICE_MAP = {
 
 SUBMIT_LIMIT_PER_FETCH = 50
 
-ALPHA_CE_NAMES: Final = ["WU2-A1", "WE1-A1"]
-BETA_CE_NAMES: Final = ["WU2-U1", "WE1-U1", "WU2-B1", "WE1-B1"]
-PREPROD_CE_NAMES: Final = ["WE1-T1", "WU2-T1", "WE1-O2", "WE1-P2", "WU2-P2"]
-PROD_CE_NAMES: Final = ["WE1-O3", "WU2-P3", "WE1-P3", "WU2-P1", "WE1-P1"]
+ALPHA_CE_NAMES: Final = ["AccountName-A1"]
+BETA_CE_NAMES: Final = ["AccountName-U1", "AccountName"]
+PREPROD_CE_NAMES: Final = ["AccountName", "AccountName-O2", "AccountName-P2"]
+PROD_CE_NAMES: Final = ["AccountName-O3", "AccountName-P3", "AccountName"]
 NON_PROD_NAMES: Final = ALPHA_CE_NAMES + BETA_CE_NAMES
 EVERY_CE_NAMES: Final = (
     ALPHA_CE_NAMES + BETA_CE_NAMES + PREPROD_CE_NAMES + PROD_CE_NAMES
@@ -166,7 +166,7 @@ if __name__ == "__main__":
     ce_names = []
 
     for env in TARGET_ENVS:
-        region = "eu-west-1" if env[0:3] == "WE1" else "us-east-2"
+        region = "eu-west-1" if env[0:3] == "AccountName" else "us-east-2"
 
         spoke_client = get_session(env, region).client(SERVICE_MAP[EXTRACTION_TYPE])
 

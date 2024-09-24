@@ -15,10 +15,10 @@ import re
 import os
 
 # Define constants for CE names , just update new environment name
-ALPHA_CE_ENV_NAMES = ["WU2-A1", "WE1-A1"]
-BETA_CE_ENV_NAMES = ["WU2-U1", "WE1-U1", "WU2-B1", "WE1-B1"]
-PREPROD_CE_ENV_NAMES = ["WE1-T1", "WU2-T1", "WE1-O2", "WE1-P2", "WU2-P2"]
-PROD_CE_ENV_NAMES = ["WE1-O3", "WU2-P3", "WE1-P3", "WU2-P1", "WE1-P1"]
+ALPHA_CE_ENV_NAMES = ["AccoutName-Tests", "AccountName-A1"]
+BETA_CE_ENV_NAMES = ["AccoutName", "AccountName"]
+PREPROD_CE_ENV_NAMES = ["AccountName-", "AccountName", "AccountName"]
+PROD_CE_ENV_NAMES = ["AccountName", "AccountName", "AccountName"]
 EVERY_CE_ENV_NAMES = (
     ALPHA_CE_ENV_NAMES + BETA_CE_ENV_NAMES + PREPROD_CE_ENV_NAMES + PROD_CE_ENV_NAMES
 )

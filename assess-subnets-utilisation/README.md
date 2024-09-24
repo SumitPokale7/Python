@@ -68,7 +68,7 @@ python assess-subnets.py  --account-name <Account name> --region <Region name> -
 ### Script arguments
 #### Required arguments
 ```bash
---account-name      # Please provide the IaaS account name, e.g. WE1-A1
+--account-name      # Please provide the IaaS account name, e.g. AccountName
 --region            # Please provide the AWS region
 ```
 

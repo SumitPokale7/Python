@@ -92,8 +92,8 @@ def get_iam_policy_document(client, policy_arn) -> dict:
 
 
 if __name__ == "__main__":
-    beta_account = Account("WE1-B1", "WE1-B1-0105", [])
-    preprod_account = Account("WE1-T1", "WE1-T1-0010", [])
+    beta_account = Account("AccountName", "AccountName", [])
+    preprod_account = Account("AccountName", "AccountName", [])
     access_roles = [
         "-role_OPERATIONS",
         "-role_NETWORK-ADM",

@@ -36,15 +36,15 @@ pipenv run pip list | grep -i cloud
 Pass account aliases as arguments to the `sync_tags.py` script:
 
 ```shell
-pipenv run ./sync_tags.py WE1-A1 WU2-A1
+pipenv run ./sync_tags.py AccountName-A1 WU2-A1
 ```
 
 There is no need to prepare roles in advance. Once script is launched, it will check current credentials and provide instructions, if these needs to be updated:
 
 ```shell
-$ pipenv run ./sync_tags.py WE1-A1 WU2-B1
+$ pipenv run ./sync_tags.py AccountName-A1 WU2-B1
 Starting ...
-2021-04-23 07:52:57,529 | INFO | [WE1-A1] resolving account ...
+2021-04-23 07:52:57,529 | INFO | [AccountName-A1] resolving account ...
 2021-04-23 07:52:58,119 | INFO | [WU2-B1] resolving account ...
 Error: found 1 not authorized roles: WU2-B1-role_DEVOPS
   Refresh credentials:

@@ -150,5 +150,5 @@ if __name__ == "__main__":
     ) as file:
         writer = csv.writer(file)
         writer.writerows(processed_list)
-# 837302091737,WE1-A1 ALPHA,Enterprise,Production,WE1-A1-role_DEVOPS
-# 881091386611,WU2-A1 ALPHA,Enterprise,Production,WU2-A1-role_DEVOPS
+# 123445678903,AccountName ALPHA,Enterprise,Production,AccountName-role_DEVOPS
+# 123445678903,AccoutName ALPHA,Enterprise,Production,Account-Name-role_DEVOPS

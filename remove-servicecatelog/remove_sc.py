@@ -21,7 +21,7 @@ PROCESS_FAILED_SPOKES: Final = os.getenv(
 IS_ENTERPRISE: Final = os.getenv(
     "IS_ENTERPRISE", "YES"
 )  # YES: process enterprise accounts
-HUB_NAMES: Final = os.getenv("HUB_NAMES", "WE1-U1,WE1-T1,WU2-U1,WU2-T1")
+HUB_NAMES: Final = os.getenv("HUB_NAMES", "AccountName-U1,AccountName-T1,WU2-U1,WU2-T1")
 EXTRACT_LOGS = os.getenv("EXTRACT_LOGS", "YES")
 ENVIRONMENT_TYPE = os.getenv("ENVIRONMENT_TYPE", "ALL")  # ALL, Prod, NonProd, Sandbox
 ACCOUNT_TYPE = os.getenv(

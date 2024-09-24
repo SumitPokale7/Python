@@ -72,7 +72,7 @@ Script performs following actions:
 #### Required arguments
 
 ```bash
---iaas_account_name        # Please provide the IaaS account name, eg. WE1-A1
+--iaas_account_name        # Please provide the IaaS account name, eg. AccountName-A1
 --region                   # Please provide the Osaka region name, eg. 'ap-northeast-3'
 ```
 
@@ -92,7 +92,7 @@ a) Run the 'awsconnect' file in order to assume the IAM role for each IaaS accou
 
 ```bash
 # define IaaS accounts to assume federated role for
-IAAS_ACC_NAMES=(<list_of_iaas_accunts>)   # eg. (WE1-A1 WU2-A1 WE1-B1 WU2-B1 WE1-T1 WU2-T1)
+IAAS_ACC_NAMES=(<list_of_iaas_accunts>)   # eg. (AccountName-A1 WU2-A1 AccountName-B1 WU2-B1 AccountName-T1 WU2-T1)
 ROLE_SUFFIX="-role_NETWORK-ADM"           # federated role name
 PATH_AWSCONNECT="<full_path>/awsconnect"  # awsconnect file location
 

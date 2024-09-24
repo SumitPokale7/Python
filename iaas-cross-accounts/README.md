@@ -21,7 +21,7 @@ $ ./discover_lambdas_py27.py -h
 discover and generate report within all (18) accounts.
 
 ```shell
-$ ./discover_lambdas_py27.py {WE1,WU2}-{A1,B1,U1,P1,T1,P2,O2,P3,O3}
+$ ./discover_lambdas_py27.py {AccountName,WU2}-{A1,B1,U1,P1,T1,P2,O2,P3,O3}
 ```
 
 **Note**: curly braces expansion works in Bash, might not work in other shells

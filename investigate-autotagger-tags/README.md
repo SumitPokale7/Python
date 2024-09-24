@@ -28,9 +28,9 @@ python investigate-resources.py
 ```
 5. Script does the following:
   - gets a list of resources tagged with "cloud-environment" tag
-  - prints two CSV report files (example for the WE1-A1 accopunt):
-    - WE1-A1-summary.csv
-    - WE1-A1-report.csv
+  - prints two CSV report files (example for the AccountName-A1 accopunt):
+    - AccountName-A1-summary.csv
+    - AccountName-A1-report.csv
 
 ### Linting
 ```bash

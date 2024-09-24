@@ -21,7 +21,7 @@ def usage():
     print(f"Usage: ./{SELF_FILENAME} <account>[ <account>]")
     print()
     print("Arguments:")
-    print("    account          - account alias, such as WE1-A1")
+    print("    account          - account alias, such as AccountName-A1")
     print()
     print("Parameters:")
     print("    -h, --help       - display help")

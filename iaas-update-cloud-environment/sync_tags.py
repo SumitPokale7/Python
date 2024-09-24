@@ -20,7 +20,7 @@ _log = logging.getLogger("cli")
 DRY_RUN = False
 AWS_PROFILE_SUFFIX = "-role_DEVOPS"
 AWS_REGIONS = dict(
-    WE1="eu-west-1",
+    AccountName="eu-west-1",
     WU2="us-east-2",
 )
 

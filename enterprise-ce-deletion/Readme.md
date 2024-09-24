@@ -43,13 +43,13 @@ By default script is going to run in dry run mode, if --dry-run=False it will ru
 cd tools-scripts/enterprise-ce-deletion
 python3 enterprise-ce-operations.py --env-names <env name> --region <region name> 
 python3 enterprise-ce-operations.py --env-names <env name> --region <region name> --no-dry-run
-i.e We can update env name as WU2-A1", "WE1-A1", "WU2-U1", "WE1-U1", "WU2-B1", "WE1-B1, "WE1-T1", "WU2-T1", "WE1-O2", "WE1-P2", "WU2-P2", "WE1-O3", "WU2-P3", "WE1-P3", "WU2-P1", "WE1-P1"
+i.e We can update env name as "AccountName-O2", "AccountName-03", "AccountName-04", "AccountName-05"
 
-```here default value for region is us-east-2, [WU2 is us-east-2 and WE1 is eu-west-1]
+```here default value for region is us-east-2, [AccountRegion is us-east-2 and AccountName is eu-west-1]
 
 Example:
-python3 enterprise-ce-operations.py --env-names WE1-A1 --region eu-west-1
-python3 enterprise-ce-operations.py --env-names WE1-A1 --region eu-west-1 --no-dry-run
+python3 enterprise-ce-operations.py --env-names AccountName --region eu-west-1
+python3 enterprise-ce-operations.py --env-names AccountName --region eu-west-1 --no-dry-run
 ```
 ### enterprice-ce-operation perform follwoing action:
 1. List the CE's with the naming convention as "{$CE_NAME}-DELETION-XXXX"

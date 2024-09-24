@@ -72,7 +72,7 @@ def main():
         "us-west-1",
         "us-west-2",
     ]
-    accounts = ["WE1-P2", "WU2-P2", "WE1-T1", "WU2-T1", "WE1-U1", "WU2-U1"]
+    accounts = ["AccountName-P2", "WU2-P2", "AccountName-T1", "WU2-T1", "AccountName-U1", "WU2-U1"]
     logger.info(f"Input parameters CFT_NAME : { stack_names }, regions {regions}")
     try:
         for account in accounts:

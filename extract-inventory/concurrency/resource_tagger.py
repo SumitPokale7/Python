@@ -4,7 +4,7 @@
 # This script processes the csv files generated as output from the process_enterprise.py script
 # EX.
 #   account_id,region,volume_id,tags
-#   WE1-B1,eu-west-1,vol-0acc7a4067af516b5,PROBLEM
+#   AccountName-B1,eu-west-1,vol-0acc7a4067af516b5,PROBLEM
 # CSV file_name is passed as an input to the script
 # Filter out results to only return resources without cloud-environment tag by modifying the extraction_utils.py
 # EX. if "Tags" not in volume or not any(tag["Key"] == "cloud-environment" for tag in volume["Tags"])
@@ -26,22 +26,8 @@ logger = logging.getLogger(__name__)
 
 # Account mapping
 accounts = {
-    "WE1-A1": "837302091737",
-    "WU2-A1": "881091386611",
-    "WE1-B1": "205110769959",
-    "WU2-B1": "239783826269",
-    "WE1-U1": "630017984869",
-    "WU2-U1": "325908578506",
-    "WE1-T1": "294080939866",
-    "WU2-T1": "593865320528",
-    "WE1-P2": "862459626227",
-    "WU2-P2": "609662869493",
-    "WE1-O2": "220382560322",
-    "WE1-P1": "554245309482",
-    "WU2-P1": "129551109455",
-    "WE1-P3": "876815284505",
-    "WU2-P3": "885361910306",
-    "WE1-O3": "249116501650",
+    "AccountName-A1": "8373000000000",
+    "WU2-A1": "0000000000000",
 }
 
 

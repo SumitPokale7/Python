@@ -135,7 +135,7 @@ def parse_args():
     required.add_argument(
         "--account-name",
         required=True,
-        help="Please provide the IaaS account name, e.g. WE1-A1",
+        help="Please provide the IaaS account name, e.g. AccountName",
     )
     required.add_argument(
         "--region",

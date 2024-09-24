@@ -15,7 +15,7 @@ This script extracts information from spoke, enterprise, and hub accounts for se
 export REGION=eu-west-1
 export ARE_SPOKES_INCLUDED=NO
 export IS_ENTERPRISE=YES
-export HUB_NAMES=WE1-A1,WE1-B1
+export HUB_NAMES=AccountName-A1,AccountName-B1
 ```
 
 Set to DevOps role

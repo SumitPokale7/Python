@@ -10,7 +10,7 @@ then
     echo "Usage:"
     echo "$0 <IAAS_ACC_NAMES> <ROLE_SUFFIX>"
     echo "Example:"
-    echo "WE1-A1 WU2-A1 -role_NETWORK-ADM"
+    echo "AccountName-A1 WU2-A1 -role_NETWORK-ADM"
     exit 1
 fi
 

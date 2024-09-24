@@ -4,7 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-cloudenvironments = {ref = "1.2.0", git = "http://git.0404.p1.we1.r53.cd2.bp.com/enterprise/cloud-environments.git"}
+cloudenvironments = {ref = "1.2.0", git = "http://git.0404.p1.AccountName.r53.cd2.bp.com/enterprise/cloud-environments.git"}
 
 [dev-packages]
 

@@ -62,11 +62,11 @@ create_grant() {
     echo
 }
 
-create_grant "WE1-A1" "eu-west-1" "WE1-A1"
+create_grant "AccountName-A1" "eu-west-1" "AccountName-A1"
 create_grant "WU2-A1" "us-east-2" "WU2-A1"
 
-create_grant "WE1-B1" "eu-west-1" "WE1-B1" "WE1-U1"
+create_grant "AccountName-B1" "eu-west-1" "AccountName-B1" "AccountName-U1"
 create_grant "WU2-B1" "us-east-2" "WU2-B1" "WU2-U1"
 
-create_grant "WE1-P1" "eu-west-1" "WE1-P1" "WE1-T1" "WE1-P2" "WE1-O2" "WE1-P3" "WE1-O3"
+create_grant "AccountName-P1" "eu-west-1" "AccountName-P1" "AccountName-T1" "AccountName-P2" "AccountName-O2" "AccountName-P3" "AccountName-O3"
 create_grant "WU2-P1" "us-east-2" "WU2-P1" "WU2-T1" "WU2-P2" "WU2-O2" "WU2-P3" "WU2-O3"

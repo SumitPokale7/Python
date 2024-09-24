@@ -13,12 +13,12 @@ Here is a quick guide:
 
 2. Running on enterprise account
 ```bash
-awsconnect --role WE1-P3-role_DEVOPS
+awsconnect --role AccountName-role_DEVOPS
 ```
 
 3. Setup Default AWS Profile
 ```bash
-export AWS_DEFAULT_PROFILE=WE1-P3-role_DEVOPS
+export AWS_DEFAULT_PROFILE=AccountName-role_DEVOPS
 ```
 
 ### How to use the script

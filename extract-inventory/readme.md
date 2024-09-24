@@ -36,7 +36,7 @@ Here is a quick guide:
    
    - Set the env parameters: 
    - IS_ENTERPRISE=YES, 
-   - HUB_NAMES="WE1-A1,WE1-B1", 
+   - HUB_NAMES="AccountName-A1,AccountName-B1", 
    - EXTRACTION_TYPE=1
    - Set variable EXTRACTION_TYPE=EXTRACT_LAMBDAS
    
@@ -94,7 +94,7 @@ Here is a quick guide:
 
    - Set the env parameters:
    - IS_ENTERPRISE=Yes, 
-   - HUB_NAMES="WE1-A1", 
+   - HUB_NAMES="AccountName-A1", 
    - EXTRACTION_TYPE: Final = EXTRACT_LG, 
    - ARE_SPOKES_INCLUDED=NO
    - ENVIRONMENT_TYPE = os.getenv("ENVIRONMENT_TYPE", "ALL")  
@@ -135,7 +135,7 @@ Running on enterprise account
 export REGION=eu-west-1
 export ARE_SPOKES_INCLUDED=NO
 export IS_ENTERPRISE=YES
-export HUB_NAMES=WE1-A1
+export HUB_NAMES=AccountName-A1
 ```
 
 ### How to use the script
