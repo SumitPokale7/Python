@@ -1,5 +1,5 @@
 # Scripts
-This repository contains any scripts which were developed to perform ad-hoc tasks.
+This repository contains any scripts which were developed to perform AWS tasks.
 
 # Overview
 
